@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Bank</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+    <div class="container">
+        <a class="navbar-brand" href="/">Daily Ledger</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
+                <a class="nav-link {% if request.path == '/add-bank' %}active{% endif %}" href="/add-bank">Add Bank</a>
+                <a class="nav-link {% if request.path == '/add-entry' or request.path.startswith('/edit-entry') %}active{% endif %}" href="/add-entry">Add Entry</a>
+                <a class="nav-link {% if request.path == '/daily-report' %}active{% endif %}" href="/daily-report">Daily Report</a>
+                <a class="nav-link {% if request.path == '/monthly-report' %}active{% endif %}" href="/monthly-report">Monthly Report</a>
+                {% if session.get('shop_name') %}
+                    <form method="POST" action="/logout" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="btn btn-link nav-link">Logout</button>
+                    </form>
+                {% else %}
+                    <a class="nav-link {% if request.path == '/login' %}active{% endif %}" href="/login">Login</a>
+                    <a class="nav-link {% if request.path == '/signup' %}active{% endif %}" href="/signup">Signup</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h4>Add Bank</h4>
+
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label class="form-label">Bank Name</label>
+                    <input type="text" name="bank_name" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Opening Balance (Rs)</label>
+                    <input type="number" name="opening_balance" class="form-control" required>
+                </div>
+
+                <button class="btn btn-success w-100">Save Bank</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5>Added Banks</h5>
+
+            {% if banks %}
+                <ul class="list-group">
+                    {% for bank in banks %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            {{ bank.name }}
+                            <span>Rs {{ bank.opening_balance }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted">No banks added yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

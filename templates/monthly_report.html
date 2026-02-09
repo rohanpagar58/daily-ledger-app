@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Monthly Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+    <div class="container">
+        <a class="navbar-brand" href="/">Daily Ledger</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
+                <a class="nav-link {% if request.path == '/add-bank' %}active{% endif %}" href="/add-bank">Add Bank</a>
+                <a class="nav-link {% if request.path == '/add-entry' or request.path.startswith('/edit-entry') %}active{% endif %}" href="/add-entry">Add Entry</a>
+                <a class="nav-link {% if request.path == '/daily-report' %}active{% endif %}" href="/daily-report">Daily Report</a>
+                <a class="nav-link {% if request.path == '/monthly-report' %}active{% endif %}" href="/monthly-report">Monthly Report</a>
+                {% if session.get('shop_name') %}
+                    <form method="POST" action="/logout" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="btn btn-link nav-link">Logout</button>
+                    </form>
+                {% else %}
+                    <a class="nav-link {% if request.path == '/login' %}active{% endif %}" href="/login">Login</a>
+                    <a class="nav-link {% if request.path == '/signup' %}active{% endif %}" href="/signup">Signup</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+
+    <!-- Month Selection -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h4 class="mb-3">Monthly Report</h4>
+
+            <form method="GET">
+                <label class="form-label">Select Month</label>
+                <input
+                    type="month"
+                    name="report_month"
+                    class="form-control mb-3"
+                    value="{{ selected_month }}"
+                    required
+                >
+                <button class="btn btn-primary w-100">View Report</button>
+            </form>
+        </div>
+    </div>
+
+    {% if report %}
+    <!-- Summary -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="mb-3">Monthly Summary</h5>
+
+            <div class="row text-center">
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="border rounded p-2">
+                        <small>Total Credit</small>
+                        <h6>Rs {{ report.total_credit }}</h6>
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="border rounded p-2">
+                        <small>Total Debit</small>
+                        <h6>Rs {{ report.total_debit }}</h6>
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="border rounded p-2">
+                        <small>Most-used Bank</small>
+                        <h6>{{ report.most_used_bank }}</h6>
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="border rounded p-2">
+                        <small>Highest Amount</small>
+                        <h6>Rs {{ report.highest_amount }}</h6>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <p class="mb-0">
+                <strong>Month Closing Balance:</strong>
+                Rs {{ report.month_closing_balance }}
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if bank_wise %}
+    <!-- Bank-wise Monthly Report -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="mb-3">Bank-wise Monthly Report</h5>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Bank</th>
+                            <th>Total Credit (Rs)</th>
+                            <th>Total Debit (Rs)</th>
+                            <th>Closing Balance (Rs)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bank_wise %}
+                        <tr>
+                            <td>{{ b.bank }}</td>
+                            <td>{{ b.total_credit }}</td>
+                            <td>{{ b.total_debit }}</td>
+                            <td>{{ b.closing_balance }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
