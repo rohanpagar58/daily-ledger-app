@@ -1,66 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Daily Ledger App</title>
+{% extends "base.html" %}
 
-    <!-- Mobile responsiveness -->
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+{% block title %}Home - Daily Ledger{% endblock %}
 
-    <!-- Bootstrap CSS (free CDN) -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
-    <div class="container">
-        <a class="navbar-brand" href="/">Daily Ledger</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mainNavbar">
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
-                <a class="nav-link {% if request.path == '/add-bank' %}active{% endif %}" href="/add-bank">Add Bank</a>
-                <a class="nav-link {% if request.path == '/add-entry' or request.path.startswith('/edit-entry') %}active{% endif %}" href="/add-entry">Add Entry</a>
-                <a class="nav-link {% if request.path == '/daily-report' %}active{% endif %}" href="/daily-report">Daily Report</a>
-                <a class="nav-link {% if request.path == '/monthly-report' %}active{% endif %}" href="/monthly-report">Monthly Report</a>
-                {% if session.get('shop_name') %}
-                    <form method="POST" action="/logout" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button class="btn btn-link nav-link">Logout</button>
-                    </form>
-                {% else %}
-                    <a class="nav-link {% if request.path == '/login' %}active{% endif %}" href="/login">Login</a>
-                    <a class="nav-link {% if request.path == '/signup' %}active{% endif %}" href="/signup">Signup</a>
-                {% endif %}
-            </div>
-        </div>
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-body text-center">
+        {% if session.get('shop_name') %}
+        <h3 class="mb-3">{{ session.get('shop_name') }}</h3>
+        {% else %}
+        <h3>Daily Ledger</h3>
+        {% endif %}
+        <p class="text-muted">
+            Track daily credited and debited amounts easily
+        </p>
     </div>
-</nav>
-
-<div class="container mt-4">
-
-    <div class="card shadow-sm">
-        <div class="card-body text-center">
-            <h3>Daily Ledger App</h3>
-            {% if session.get('shop_name') %}
-            <p class="mb-1"><strong>{{ session.get('shop_name') }}</strong></p>
-            {% endif %}
-            <p class="text-muted">
-                Track daily credited and debited amounts easily
-            </p>
-        </div>
-    </div>
-
-    <div class="mt-4 d-grid gap-2">
-        <a href="/add-entry" class="btn btn-primary btn-lg">Add Daily Entry</a>
-        <a href="/add-bank" class="btn btn-outline-primary btn-lg">Add Bank</a>
-        <a href="/daily-report" class="btn btn-outline-success btn-lg">Daily Report</a>
-        <a href="/monthly-report" class="btn btn-outline-dark btn-lg">Monthly Report</a>
-    </div>
-
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<div class="mt-4 d-grid gap-2">
+    <a href="/add-entry" class="btn btn-primary btn-lg">Add Daily Entry</a>
+    <a href="/add-bank" class="btn btn-outline-primary btn-lg">Add Bank</a>
+    <a href="/reports" class="btn btn-outline-success btn-lg">Reports</a>
+</div>
+{% endblock %}

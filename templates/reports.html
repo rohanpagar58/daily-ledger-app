@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Daily Ledger{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h4 class="text-center mb-4">Reports</h4>
+
+        <div class="list-group">
+            <a href="/daily-report" class="list-group-item list-group-item-action">
+                <strong>Day Wise Report</strong>
+                <p class="mb-0 small text-muted">View transactions day by day for a selected range.</p>
+            </a>
+            <a href="/weekly-report" class="list-group-item list-group-item-action">
+                <strong>Weekly Report</strong>
+                <p class="mb-0 small text-muted">Weekly summary of credits/debits per bank.</p>
+            </a>
+            <a href="/monthly-report" class="list-group-item list-group-item-action">
+                <strong>Monthly Report</strong>
+                <p class="mb-0 small text-muted">Monthly overview and top banks.</p>
+            </a>
+            <a href="/custom-report" class="list-group-item list-group-item-action">
+                <strong>Custom Report</strong>
+                <p class="mb-0 small text-muted">Filter by specific date range.</p>
+            </a>
+        </div>
+
+    </div>
+</div>
+</div>
+{% endblock %}

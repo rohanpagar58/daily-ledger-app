@@ -1,20 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Monthly Report - Daily Ledger{% endblock %}
+{% block title %}Weekly Report - Daily Ledger{% endblock %}
 
 {% block content %}
-<h4>Monthly Report</h4>
-<form method="GET" class="row g-3 mb-4 align-items-center">
-    <div class="col-auto">
-        <label class="col-form-label">Select Month:</label>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Weekly Report</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <span class="text-muted">{{ start_date }} to {{ end_date }}</span>
     </div>
-    <div class="col-auto">
-        <div class="input-group">
-            <input type="month" name="report_month" class="form-control" value="{{ selected_month or '' }}" required>
-            <button class="btn btn-primary" type="submit">View Report</button>
-        </div>
-    </div>
-</form>
+</div>
 
 {% if report %}
 <div class="row">
@@ -40,7 +34,7 @@
         <div class="card card-stat card-stat-info h-100">
             <div class="card-header py-2 text-uppercase small">Closing</div>
             <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.month_closing_balance }}</h5>
+                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.week_closing_balance }}</h5>
             </div>
         </div>
     </div>
@@ -54,6 +48,7 @@
     </div>
 </div>
 
+<!-- Bank Wise Details -->
 <div class="card shadow-sm mt-4">
     <div class="card-header">Bank-wise Summary</div>
     <div class="card-body p-0">
@@ -82,7 +77,7 @@
     </div>
 </div>
 
-{% elif selected_month %}
-<p class="text-muted">No data found for the selected month.</p>
+{% else %}
+<p>No data found for this week.</p>
 {% endif %}
 {% endblock %}
