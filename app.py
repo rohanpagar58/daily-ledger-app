@@ -1,5 +1,5 @@
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from datetime import date, datetime, timedelta
@@ -376,6 +376,7 @@ def add_bank():
             "opening_balance": opening_balance,
             "shop_identifier": session.get("shop_identifier")
         })
+        flash(f"'{bank_name}' Bank added successfully!", 'success')
         return redirect(url_for("add_bank"))
 
     banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
@@ -414,6 +415,7 @@ def edit_bank(bank_id):
             {"_id": ObjectId(bank_id)},
             {"$set": {"name": bank_name, "opening_balance": opening_balance}}
         )
+        flash('Bank updated successfully!', 'success')
         return redirect(url_for("add_bank"))
 
     return render_template("edit_bank.html", bank=bank, csrf_token=get_csrf_token())
@@ -443,6 +445,7 @@ def add_entry():
     error = None
     today = date.today().isoformat()
     banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
+    selected_bank = request.args.get("selected_bank")
 
     if request.method == "POST":
         verify_csrf()
@@ -511,8 +514,13 @@ def add_entry():
 
                 # Recalculate balances to ensure consistency, especially for backdated entries
                 recalculate_bank_balances(bank_id)
-
-                return redirect(url_for("add_entry"))
+                
+                if credited > 0:
+                    flash(f"{credited} credited to {bank['name']}", "success")
+                else:
+                    flash(f"{debited} debited from {bank['name']}", "debit")
+                    
+                return redirect(url_for("add_entry", selected_bank=bank_id))
 
     from_date = (date.today() - timedelta(days=6)).isoformat()
     entries = list(
@@ -529,6 +537,7 @@ def add_entry():
         entries=entries,
         error=error,
         today=today,
+        selected_bank=selected_bank,
         csrf_token=get_csrf_token()
     )
 
@@ -588,6 +597,12 @@ def edit_entry(entry_id):
         )
 
         recalculate_bank_balances(entry["bank_id"])
+        
+        if credited > 0:
+            flash(f"Updated: {credited} credited to {entry['bank_name']}", "success")
+        else:
+            flash(f"Updated: {debited} debited from {entry['bank_name']}", "debit")
+            
         return redirect(url_for("add_entry"))
 
     return render_template("edit_entry.html", entry=entry, csrf_token=get_csrf_token())
@@ -609,7 +624,7 @@ def delete_entry(entry_id):
 
     entries_col.delete_one({"_id": ObjectId(entry_id)})
     recalculate_bank_balances(entry["bank_id"])
-
+    flash('Entry deleted successfully!', 'success')
     return redirect(url_for("add_entry"))
 
 
@@ -742,4 +757,4 @@ def custom_report():
 # RUN APP
 # -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="192.168.0.101", port=5000, debug=True)

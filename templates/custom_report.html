@@ -8,11 +8,13 @@
     <div class="row g-2 mb-3">
         <div class="col-6">
             <label class="form-label small text-muted">Start Date</label>
-            <input type="date" name="start_date" class="form-control py-3" value="{{ start_date }}" required>
+            <input type="date" name="start_date" class="form-control py-3 date-input-placeholder"
+                value="{{ start_date or '' }}" data-placeholder="dd/mm/yyyy" required>
         </div>
         <div class="col-6">
             <label class="form-label small text-muted">End Date</label>
-            <input type="date" name="end_date" class="form-control py-3" value="{{ end_date }}" required>
+            <input type="date" name="end_date" class="form-control py-3 date-input-placeholder"
+                value="{{ end_date or '' }}" data-placeholder="dd/mm/yyyy" required>
         </div>
     </div>
     <button class="btn btn-primary w-100 py-3 shadow-soft">Generate Report</button>

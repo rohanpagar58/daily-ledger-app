@@ -4,16 +4,13 @@
 
 {% block content %}
 <h4>Monthly Report</h4>
-<form method="GET" class="row g-3 mb-4 align-items-center">
-    <div class="col-auto">
-        <label class="col-form-label">Select Month:</label>
+<form method="GET" class="mb-4">
+    <div class="mb-3">
+        <label class="form-label small text-muted">Select Month</label>
+        <input type="month" name="report_month" class="form-control py-3 date-input-placeholder"
+            value="{{ selected_month or '' }}" data-placeholder="Select Month" required>
     </div>
-    <div class="col-auto">
-        <div class="input-group">
-            <input type="month" name="report_month" class="form-control" value="{{ selected_month or '' }}" required>
-            <button class="btn btn-primary" type="submit">View Report</button>
-        </div>
-    </div>
+    <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
 </form>
 
 {% if report %}

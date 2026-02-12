@@ -11,12 +11,63 @@
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Bootstrap CSS (free CDN) -->
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <!-- Custom Modern CSS -->
     <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
     {% block extra_css %}{% endblock %}
+    <style>
+        /* Custom placeholder for date inputs */
+        /* BASE STATE: Invalid (Empty) */
+        input.date-input-placeholder[type="date"]:invalid::-webkit-datetime-edit,
+        input.date-input-placeholder[type="month"]:invalid::-webkit-datetime-edit {
+            color: transparent;
+        }
+
+        input.date-input-placeholder[type="date"]:invalid::before,
+        input.date-input-placeholder[type="month"]:invalid::before {
+            content: attr(data-placeholder);
+            color: #6c757d;
+            /* text-muted color */
+            position: absolute;
+            pointer-events: none;
+        }
+
+        /* Ensure input has relative positioning for the absolute pseudo-element */
+        input.date-input-placeholder {
+            position: relative;
+        }
+
+        /* BASE STATE: Valid (Filled) */
+        input.date-input-placeholder:valid::before {
+            display: none;
+        }
+
+        /* POINTER FINE (Desktop/Mouse): Allow typing when focused */
+        @media (pointer: fine) {
+            input.date-input-placeholder:focus::before {
+                display: none;
+            }
+
+            input.date-input-placeholder:focus::-webkit-datetime-edit {
+                color: inherit;
+            }
+        }
+
+        /* POINTER COARSE (Mobile/Touch): Keep placeholder when focused (picker logic) */
+        @media (pointer: coarse) {
+            input.date-input-placeholder:focus::before {
+                display: block;
+            }
+
+            input.date-input-placeholder:focus::-webkit-datetime-edit {
+                color: transparent;
+            }
+        }
+    </style>
 </head>
 
 <body class="bg-light">
@@ -25,9 +76,16 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
         <div class="container">
             <a class="navbar-brand" href="/">Daily Ledger</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+            {% if request.path != '/login' and request.path != '/signup' %}
+            <div class="d-flex align-items-center">
+                <button type="button" class="btn btn-outline-primary me-2 d-lg-none" data-bs-toggle="modal"
+                    data-bs-target="#calculatorModal">
+                    <i class="bi bi-calculator"></i>
+                </button>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <div class="navbar-nav ms-auto">
                     <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
@@ -42,18 +100,24 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button class="btn btn-link nav-link">Logout</button>
                     </form>
+                    <li class="nav-item d-none d-lg-block">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#calculatorModal">
+                            <i class="bi bi-calculator"></i> Calculator
+                        </a>
+                    </li>
                     {% else %}
                     <a class="nav-link {% if request.path == '/login' %}active{% endif %}" href="/login">Login</a>
                     <a class="nav-link {% if request.path == '/signup' %}active{% endif %}" href="/signup">Signup</a>
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
     </nav>
 
     <!-- Main Content Area -->
     <div class="container mt-4">
-        <!-- Flash Messages (if any) -->
+        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -68,21 +132,172 @@
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Calculator Modal -->
+    <div class="modal fade" id="calculatorModal" tabindex="-1" aria-labelledby="calculatorModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="calculatorModalLabel">Calculator</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-2">
+                    <div class="mb-2 border rounded bg-white px-2 py-1">
+                        <div id="calc-history" class="text-secondary text-end"
+                            style="min-height: 1.2em; font-size: 0.85rem; opacity: 0.7;"></div>
+                        <input type="text" class="form-control-plaintext text-end fs-3 fw-bold p-0" id="calc-display"
+                            readonly value="0">
+                    </div>
+                    <div class="row g-1">
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcClear()">C</button></div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('/')">/</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('*')">*</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-danger w-100"
+                                onclick="calcBackspace()">&larr;</button></div>
 
-    <!-- Auto-hide error message script (global) -->
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('7')">7</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('8')">8</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('9')">9</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('-')">-</button>
+                        </div>
+
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('4')">4</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('5')">5</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('6')">6</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('+')">+</button>
+                        </div>
+
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('1')">1</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('2')">2</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('3')">3</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-primary w-100 h-100" onclick="calcResult()">=</button>
+                        </div>
+
+                        <div class="col-6"><button class="btn btn-light w-100" onclick="calcAppend('0')">0</button>
+                        </div>
+                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('.')">.</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calculator Logic -->
     <script>
-        setTimeout(function () {
-            const alerts = document.querySelectorAll(".alert");
-            alerts.forEach(function (alert) {
-                // Don't auto-hide persistent alerts if needed, but for now we hide all
-                // alert.style.display = "none"; 
-            });
-        }, 5000); 
+        let display = document.getElementById('calc-display');
+        let historyDisplay = document.getElementById('calc-history');
+
+        // Restore state on load
+        window.addEventListener('load', function () {
+            const savedState = sessionStorage.getItem('calcState');
+            const savedHistory = sessionStorage.getItem('calcHistory');
+            if (savedState) {
+                display.value = savedState;
+            }
+            if (savedHistory) {
+                historyDisplay.innerText = savedHistory;
+            }
+        });
+
+        function saveState() {
+            sessionStorage.setItem('calcState', display.value);
+            sessionStorage.setItem('calcHistory', historyDisplay.innerText);
+        }
+
+        function calcAppend(val) {
+            if (display.value === '0' && val !== '.') {
+                display.value = val;
+            } else {
+                display.value += val;
+            }
+            saveState();
+        }
+
+        function calcClear() {
+            display.value = '0';
+            historyDisplay.innerText = '';
+            saveState();
+        }
+
+        function calcBackspace() {
+            display.value = display.value.slice(0, -1);
+            if (display.value === '') display.value = '0';
+            saveState();
+        }
+
+        function calcResult() {
+            try {
+                // Update history with the expression
+                historyDisplay.innerText = display.value;
+
+                // Use Function constructor for safer evaluation than eval()
+                let result = eval(display.value);
+                display.value = result;
+            } catch (e) {
+                display.value = 'Error';
+            }
+            saveState();
+        }
     </script>
 
     {% block extra_js %}{% endblock %}
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Auto-hide alerts script (global) -->
+    <!-- Auto-hide alerts script (global) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function (alert) {
+                // Default timeout 5 seconds
+                let timeout = 5000;
+                // If success or debit message, hide after 2 seconds (2000ms)
+                if (alert.classList.contains('alert-success') || alert.classList.contains('alert-debit')) {
+                    timeout = 2000;
+                }
+
+                setTimeout(function () {
+                    var bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, timeout);
+            });
+        });
+    </script>
+    <style>
+        /* Floating Alert Styles */
+        .alert {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1055;
+            /* Higher than modal (1050) */
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Custom Debit Alert (Red like Danger) */
+        .alert-debit {
+            color: #842029;
+            background-color: #f8d7da;
+            border-color: #f5c2c7;
+        }
+    </style>
 </body>
 
 </html>

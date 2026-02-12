@@ -19,17 +19,23 @@
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <!-- Select Bank -->
-                    <!-- Select Bank -->
                     <div class="mb-3">
                         <label class="form-label small text-muted">Select Bank</label>
                         <div class="dropdown w-100">
+                            {% set ns = namespace(bank_name='-- Select Bank --') %}
+                            {% for bank in banks %}
+                            {% if selected_bank and bank._id|string == selected_bank %}
+                            {% set ns.bank_name = bank.name %}
+                            {% endif %}
+                            {% endfor %}
                             <button
                                 class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center py-3 custom-select-btn"
                                 type="button" id="bankDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                                <span>-- Select Bank --</span>
+                                <span>{{ ns.bank_name }}</span>
                                 <span class="dropdown-arrow">▼</span>
                             </button>
-                            <input type="hidden" name="bank_id" id="bankSelect" required>
+                            <input type="hidden" name="bank_id" id="bankSelect" value="{{ selected_bank or '' }}"
+                                required>
                             <ul class="dropdown-menu w-100 shadow-sm custom-dropdown-menu"
                                 aria-labelledby="bankDropdownBtn">
                                 {% for bank in banks %}
@@ -201,5 +207,12 @@
                 balanceField.value = "0";
             });
     }
+
+    // Auto-fetch balance if bank is pre-selected (e.g. after redirect)
+    document.addEventListener("DOMContentLoaded", function () {
+        if (document.getElementById("bankSelect").value) {
+            fetchBalance();
+        }
+    });
 </script>
 {% endblock %}
