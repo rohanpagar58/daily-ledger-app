@@ -3,12 +3,15 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from datetime import date, datetime, timedelta
-from pymongo import MongoClient, UpdateOne
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 from bson.objectid import ObjectId
 
 
 import os
 from dotenv import load_dotenv
+from banks import register_bank_routes
+from reports import register_report_routes
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -19,6 +22,12 @@ load_dotenv()
 app = Flask(__name__)
 # Use SECRET_KEY from environment or fall back to a random one (not recommended for production persistence)
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
+)
 
 
 # -----------------------------
@@ -36,47 +45,25 @@ shops_col = db["shops"]
 
 
 # -----------------------------
-# COMMON HELPERS
+# SHARED APP HELPERS
+# (used by auth + entries in this file)
 # -----------------------------
 def current_shop_identifier():
     return session.get("shop_identifier")
 
 
 def find_shop_by_identifier(identifier):
-    return shops_col.find_one({
-        "$or": [
-            {"identifier": identifier},
-            {"mobile": identifier},
-            {"email": identifier}
-        ]
-    })
-
-
-def get_shop_banks():
-    return list(banks_col.find({"shop_identifier": current_shop_identifier()}))
-
-
-def get_entries_in_range(start_date, end_date):
-    return list(entries_col.find({
-        "date": {"$gte": start_date, "$lte": end_date},
-        "shop_identifier": current_shop_identifier()
-    }))
-
-
-def parse_entry_datetime(entry):
-    d_str = entry.get("date", "1970-01-01")
-    t_str = entry.get("time", "00:00:00")
     try:
-        return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        try:
-            return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
-        except ValueError:
-            return datetime.min
-
-
-def render_add_bank_page(error=None):
-    return render_template("add_bank.html", banks=get_shop_banks(), error=error)
+        return shops_col.find_one({
+            "$or": [
+                {"identifier": identifier},
+                {"mobile": identifier},
+                {"email": identifier}
+            ]
+        })
+    except PyMongoError as e:
+        app.logger.error(f"Database error while finding shop: {e}")
+        return None
 
 
 def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None):
@@ -90,124 +77,6 @@ def render_daily_entry_page(banks, today, selected_bank=None, error=None, entrie
         today=today,
         selected_bank=selected_bank
     )
-
-
-# -----------------------------
-# HELPER: RECALCULATE BALANCES
-# -----------------------------
-def recalculate_bank_balances(bank_id):
-    """
-    Recalculate opening & remaining balances
-    using entry_datetime (correct order)
-    """
-    shop_identifier = current_shop_identifier()
-    oid = to_object_id(bank_id)
-    if not oid:
-        return 
-        
-    bank = banks_col.find_one({"_id": oid, "shop_identifier": shop_identifier})
-    if not bank:
-        return
-
-    # Ensure bank_id is String for Entry lookup (as stored in add_entry)
-    str_bank_id = str(bank_id)
-    
-    raw_entries = list(entries_col.find({"bank_id": str_bank_id, "shop_identifier": shop_identifier}))
-    entries = sorted(raw_entries, key=parse_entry_datetime)
-
-    balance = bank["opening_balance"]
-    bulk_ops = []
-
-    for e in entries:
-        # DATA CLEANING: Coerce types to ensure no string/float mismatch
-        try:
-            credited = float(e.get("credited", 0))
-        except:
-            credited = 0.0
-            
-        try:
-            debited = float(e.get("debited", 0))
-        except:
-            debited = 0.0
-
-        opening_balance = balance
-        balance = balance + credited - debited
-        
-        # Always update entry_datetime to be correct based on date/time fields
-        correct_dt = parse_entry_datetime(e)
-        
-        # Standardize time string to HH:MM:SS
-        standard_time = correct_dt.strftime("%H:%M:%S")
-
-        updates = {
-            "opening_balance": opening_balance,
-            "remaining_balance": balance,
-            "credited": credited,  # Force float
-            "debited": debited,    # Force float
-            "entry_datetime": correct_dt,
-            "time": standard_time  # Force standard format
-        }
-
-        bulk_ops.append(UpdateOne(
-            {"_id": e["_id"]},
-            {"$set": updates}
-        ))
-
-    if bulk_ops:
-        entries_col.bulk_write(bulk_ops)
-
-
-# -----------------------------
-# REPORT HELPERS
-# -----------------------------
-def build_report(entries):
-    total_credit = sum(e["credited"] for e in entries)
-    total_debit = sum(e["debited"] for e in entries)
-
-    summary = {}
-    for e in entries:
-        b = e["bank_name"]
-        e_dt = e.get("entry_datetime") or parse_entry_datetime(e)
-        summary.setdefault(b, {"credit": 0, "debit": 0, "close": e["remaining_balance"], "dt": e_dt})
-        summary[b]["credit"] += e["credited"]
-        summary[b]["debit"] += e["debited"]
-        if e_dt >= summary[b]["dt"]:
-            summary[b]["close"] = e["remaining_balance"]
-            summary[b]["dt"] = e_dt
-
-    bank_wise = []
-    for b, d in summary.items():
-        bank_wise.append({
-            "bank": b,
-            "total_credit": d["credit"],
-            "total_debit": d["debit"],
-            "closing_balance": d["close"]
-        })
-    bank_wise.sort(key=lambda x: x["bank"].lower() if isinstance(x["bank"], str) else "")
-
-    top_banks = sorted(bank_wise, key=lambda x: x["total_credit"] + x["total_debit"], reverse=True)
-    most_used = top_banks[0]["bank"] if top_banks else "N/A"
-    top_bank_names = [b["bank"] for b in top_banks[:3]]
-
-    highest_amt = 0
-    highest_bank = "N/A"
-    for e in entries:
-        amt = max(e["credited"], e["debited"])
-        if amt >= highest_amt:
-            highest_amt = amt
-            highest_bank = e["bank_name"]
-
-    report = {
-        "total_credit": total_credit,
-        "total_debit": total_debit,
-        "most_used_bank": most_used,
-        "highest_amount": highest_amt,
-        "highest_bank": highest_bank,
-        "top_banks": top_bank_names,
-        "closing_balance": sum(b["closing_balance"] for b in bank_wise)
-    }
-
-    return report, bank_wise
 
 
 # -----------------------------
@@ -248,9 +117,12 @@ def is_valid_identifier(value):
 
 
 def is_valid_password(value):
-    if not value:
+    if not value or len(value) < 8:
         return False
-    return len(value) >= 6
+    has_upper = re.search(r"[A-Z]", value)
+    has_lower = re.search(r"[a-z]", value)
+    has_digit = re.search(r"\d", value)
+    return bool(has_upper and has_lower and has_digit)
 
 
 def is_valid_shop_name(value):
@@ -319,7 +191,7 @@ def signup():
         if not is_valid_identifier(identifier):
             error = "Enter a valid email or mobile number"
         elif not is_valid_password(password):
-            error = "Password must be at least 6 characters"
+            error = "Password must be at least 8 characters and include uppercase, lowercase, and a number"
         elif not is_valid_shop_name(shop_name):
             error = "Shop name must be 2-60 characters"
         else:
@@ -327,12 +199,19 @@ def signup():
             if existing:
                 error = "Email or mobile already registered. Please log in."
             else:
-                shops_col.insert_one({
-                    "name": shop_name,
-                    "identifier": identifier,
-                    "password_hash": generate_password_hash(password)
-                })
-                return redirect(url_for("login"))
+                try:
+                    result = shops_col.insert_one({
+                        "name": shop_name,
+                        "identifier": identifier,
+                        "password_hash": generate_password_hash(password)
+                    })
+                    if not result.inserted_id:
+                        error = "Failed to create account. Please try again."
+                    else:
+                        return redirect(url_for("login"))
+                except PyMongoError as e:
+                    app.logger.error(f"Database error during signup: {e}")
+                    error = "Database error occurred. Please try again."
 
     return render_template("signup.html", error=error)
 
@@ -346,8 +225,8 @@ def login():
         password = request.form.get("password") or ""
         if not is_valid_identifier(identifier):
             error = "Enter a valid email or mobile number"
-        elif not is_valid_password(password):
-            error = "Password must be at least 6 characters"
+        elif not password:
+            error = "Password is required"
         else:
             existing = find_shop_by_identifier(identifier)
             if not existing or not check_password_hash(existing.get("password_hash", ""), password):
@@ -369,101 +248,23 @@ def logout():
 
 
 # -----------------------------
-# ADD BANK
+# BANK ROUTES MODULE (banks.py)
 # -----------------------------
-@app.route("/add-bank", methods=["GET", "POST"])
-def add_bank():
-    if request.method == "POST":
-        verify_csrf()
-        bank_name = (request.form.get("bank_name") or "").strip()
-        opening_balance = parse_non_negative_float(request.form.get("opening_balance"))
-        if not bank_name or len(bank_name) > 60:
-            return render_add_bank_page(error="Enter a valid bank name")
-        
-        # Check for duplicate bank name (case-insensitive)
-        existing_bank = banks_col.find_one({
-            "shop_identifier": current_shop_identifier(),
-            "name": {"$regex": f"^{re.escape(bank_name)}$", "$options": "i"}
-        })
-        if existing_bank:
-             return render_add_bank_page(error="Bank name already exists")
-
-        if opening_balance is None:
-            return render_add_bank_page(error="Opening balance must be a non-negative number")
-        banks_col.insert_one({
-            "name": bank_name,
-            "opening_balance": opening_balance,
-            "shop_identifier": current_shop_identifier()
-        })
-        flash(f"'{bank_name}' Bank added successfully!", 'success')
-        return redirect(url_for("add_bank"))
-
-    return render_add_bank_page()
-
-
-@app.route("/edit-bank/<bank_id>", methods=["GET", "POST"])
-def edit_bank(bank_id):
-    shop_identifier = current_shop_identifier()
-    bank_oid = to_object_id(bank_id)
-    if not bank_oid:
-        abort(404)
-    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": shop_identifier})
-
-    if not bank:
-        abort(404)
-
-    if request.method == "POST":
-        verify_csrf()
-        bank_name = (request.form.get("bank_name") or "").strip()
-        opening_balance = parse_non_negative_float(request.form.get("opening_balance"))
-        
-        if not bank_name or len(bank_name) > 60:
-            return render_template("edit_bank.html", bank=bank, error="Enter a valid bank name")
-        
-        # Check for duplicate bank name (case-insensitive) - excluding current bank
-        existing_bank = banks_col.find_one({
-            "shop_identifier": shop_identifier,
-            "name": {"$regex": f"^{re.escape(bank_name)}$", "$options": "i"},
-            "_id": {"$ne": bank_oid}
-        })
-        if existing_bank:
-            return render_template("edit_bank.html", bank=bank, error="Bank name already exists")
-        
-        if opening_balance is None:
-            return render_template("edit_bank.html", bank=bank, error="Opening balance must be a non-negative number")
-
-        banks_col.update_one(
-            {"_id": bank_oid},
-            {"$set": {"name": bank_name, "opening_balance": opening_balance}}
-        )
-        recalculate_bank_balances(bank_id)
-        flash('Bank updated successfully!', 'success')
-        return redirect(url_for("add_bank"))
-
-    return render_template("edit_bank.html", bank=bank)
-
-
-@app.route("/delete-bank/<bank_id>", methods=["POST"])
-def delete_bank(bank_id):
-    verify_csrf()
-    shop_identifier = current_shop_identifier()
-    bank_oid = to_object_id(bank_id)
-    if not bank_oid:
-        return redirect(url_for("add_bank"))
-    
-    # Verify bank belongs to user
-    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": shop_identifier})
-    if bank:
-        # Delete entries associated with this bank first
-        entries_col.delete_many({"bank_id": str(bank["_id"]), "shop_identifier": shop_identifier})
-        # Delete the bank
-        banks_col.delete_one({"_id": bank_oid})
-    
-    return redirect(url_for("add_bank"))
+bank_module = register_bank_routes(
+    app=app,
+    banks_col=banks_col,
+    entries_col=entries_col,
+    parse_non_negative_float=parse_non_negative_float,
+    to_object_id=to_object_id,
+    verify_csrf=verify_csrf,
+    current_shop_identifier=current_shop_identifier,
+)
+get_shop_banks = bank_module["get_shop_banks"]
+recalculate_bank_balances = bank_module["recalculate_bank_balances"]
 
 
 # -----------------------------
-# ADD DAILY ENTRY
+# ENTRY ROUTES
 # -----------------------------
 @app.route("/add-entry", methods=["GET", "POST"])
 def add_entry():
@@ -499,7 +300,12 @@ def add_entry():
                     error = "Please select a valid date"
                     return render_daily_entry_page(banks=banks, today=today, error=error)
 
-                bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+                try:
+                    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+                except PyMongoError as e:
+                    app.logger.error(f"Database error while loading bank: {e}")
+                    flash("Database error occurred. Please try again.", "danger")
+                    return render_daily_entry_page(banks=banks, today=today, error="Database error occurred. Please try again.")
                 if not bank:
                     error = "Invalid bank selection"
                     return render_daily_entry_page(banks=banks, today=today, error=error)
@@ -514,14 +320,19 @@ def add_entry():
                     error = "Please select a valid date"
                     return render_daily_entry_page(banks=banks, today=today, error=error)
 
-                last_entry = entries_col.find_one(
-                    {
-                        "bank_id": bank_id,
-                        "date": {"$lte": entry_date},
-                        "shop_identifier": current_shop_identifier()
-                    },
-                    sort=[("entry_datetime", -1)]
-                )
+                try:
+                    last_entry = entries_col.find_one(
+                        {
+                            "bank_id": bank_id,
+                            "date": {"$lte": entry_date},
+                            "shop_identifier": current_shop_identifier()
+                        },
+                        sort=[("entry_datetime", -1)]
+                    )
+                except PyMongoError as e:
+                    app.logger.error(f"Database error while reading last entry: {e}")
+                    flash("Database error occurred. Please try again.", "danger")
+                    return render_daily_entry_page(banks=banks, today=today, error="Database error occurred. Please try again.")
 
                 opening_balance = (
                     last_entry["remaining_balance"]
@@ -530,21 +341,27 @@ def add_entry():
 
                 remaining_balance = opening_balance + credited - debited
 
-                entries_col.insert_one({
-                    "date": entry_date,
-                    "time": entry_datetime.strftime("%H:%M:%S"),
-                    "entry_datetime": entry_datetime,
-                    "bank_id": bank_id,
-                    "bank_name": bank["name"],
-                    "opening_balance": opening_balance,
-                    "credited": credited,
-                    "debited": debited,
-                    "remaining_balance": remaining_balance,
-                    "shop_identifier": current_shop_identifier()
-                })
-
-                # Recalculate balances to ensure consistency, especially for backdated entries
-                recalculate_bank_balances(bank_id)
+                try:
+                    result = entries_col.insert_one({
+                        "date": entry_date,
+                        "time": entry_datetime.strftime("%H:%M:%S"),
+                        "entry_datetime": entry_datetime,
+                        "bank_id": bank_id,
+                        "bank_name": bank["name"],
+                        "opening_balance": opening_balance,
+                        "credited": credited,
+                        "debited": debited,
+                        "remaining_balance": remaining_balance,
+                        "shop_identifier": current_shop_identifier()
+                    })
+                    if not result.inserted_id:
+                        flash("Failed to save entry.", "danger")
+                        return redirect(url_for("add_entry"))
+                    recalculate_bank_balances(bank_id)
+                except PyMongoError as e:
+                    app.logger.error(f"Database error while creating entry: {e}")
+                    flash("Database error occurred. Please try again.", "danger")
+                    return redirect(url_for("add_entry"))
                 
                 if credited > 0:
                     flash(f"{credited} credited to {bank['name']}", "success")
@@ -554,13 +371,18 @@ def add_entry():
                 return redirect(url_for("add_entry", selected_bank=bank_id))
 
     from_date = (date.today() - timedelta(days=6)).isoformat()
-    entries = list(
-        entries_col.find({
-            "shop_identifier": current_shop_identifier(),
-            "date": {"$gte": from_date}
-        })
-        .sort([("date", -1), ("time", -1)])
-    )
+    try:
+        entries = list(
+            entries_col.find({
+                "shop_identifier": current_shop_identifier(),
+                "date": {"$gte": from_date}
+            })
+            .sort([("date", -1), ("time", -1)])
+        )
+    except PyMongoError as e:
+        app.logger.error(f"Database error while loading entries: {e}")
+        entries = []
+        flash("Database error occurred. Please try again.", "danger")
 
     return render_daily_entry_page(
         banks=banks,
@@ -579,18 +401,26 @@ def bank_balance(bank_id, entry_date):
     bank_oid = to_object_id(bank_id)
     if not bank_oid:
         return jsonify({"balance": 0})
-    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+    try:
+        bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+    except PyMongoError as e:
+        app.logger.error(f"Database error while reading bank balance bank: {e}")
+        return jsonify({"balance": 0})
     if not bank:
         return jsonify({"balance": 0})
 
-    last_entry = entries_col.find_one(
-        {
-            "bank_id": bank_id,
-            "date": {"$lte": entry_date},
-            "shop_identifier": current_shop_identifier()
-        },
-        sort=[("entry_datetime", -1)]
-    )
+    try:
+        last_entry = entries_col.find_one(
+            {
+                "bank_id": bank_id,
+                "date": {"$lte": entry_date},
+                "shop_identifier": current_shop_identifier()
+            },
+            sort=[("entry_datetime", -1)]
+        )
+    except PyMongoError as e:
+        app.logger.error(f"Database error while reading bank balance entry: {e}")
+        return jsonify({"balance": 0})
 
     balance = (
         last_entry["remaining_balance"]
@@ -608,7 +438,11 @@ def edit_entry(entry_id):
     entry_oid = to_object_id(entry_id)
     if not entry_oid:
         return "Entry not found", 404
-    entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+    try:
+        entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+    except PyMongoError as e:
+        app.logger.error(f"Database error while loading entry for edit: {e}")
+        return "Database error occurred. Please try again.", 500
     if not entry:
         return "Entry not found", 404
     today = date.today().isoformat()
@@ -626,12 +460,16 @@ def edit_entry(entry_id):
         if credited > 0 and debited > 0:
             return "Enter either credited or debited amount, not both", 400
 
-        entries_col.update_one(
-            {"_id": entry_oid},
-            {"$set": {"credited": credited, "debited": debited}}
-        )
-
-        recalculate_bank_balances(entry["bank_id"])
+        try:
+            entries_col.update_one(
+                {"_id": entry_oid},
+                {"$set": {"credited": credited, "debited": debited}}
+            )
+            recalculate_bank_balances(entry["bank_id"])
+        except PyMongoError as e:
+            app.logger.error(f"Database error while updating entry: {e}")
+            flash("Database error occurred. Please try again.", "danger")
+            return redirect(url_for("add_entry"))
         
         if credited > 0:
             flash(f"Updated: {credited} credited to {entry['bank_name']}", "success")
@@ -652,7 +490,12 @@ def delete_entry(entry_id):
     entry_oid = to_object_id(entry_id)
     if not entry_oid:
         return "Entry not found", 404
-    entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+    try:
+        entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+    except PyMongoError as e:
+        app.logger.error(f"Database error while loading entry for delete: {e}")
+        flash("Database error occurred. Please try again.", "danger")
+        return redirect(url_for("add_entry"))
     if not entry:
         return "Entry not found", 404
     today = date.today().isoformat()
@@ -660,113 +503,25 @@ def delete_entry(entry_id):
     if entry["date"] != today:
         return "Deleting past entries is not allowed", 403
 
-    entries_col.delete_one({"_id": entry_oid})
-    recalculate_bank_balances(entry["bank_id"])
+    try:
+        entries_col.delete_one({"_id": entry_oid})
+        recalculate_bank_balances(entry["bank_id"])
+    except PyMongoError as e:
+        app.logger.error(f"Database error while deleting entry: {e}")
+        flash("Database error occurred. Please try again.", "danger")
+        return redirect(url_for("add_entry"))
     flash('Entry deleted successfully!', 'success')
     return redirect(url_for("add_entry"))
 
 
 # -----------------------------
-# DAILY REPORT
+# REPORT ROUTES MODULE (reports.py)
 # -----------------------------
-@app.route("/daily-report")
-def daily_report():
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    entries = []
-
-    if start_date and end_date:
-        entries = get_entries_in_range(start_date, end_date)
-        
-        # Sort entries by date/time desc for the detailed table
-        entries.sort(key=lambda x: (x['date'], x['time']), reverse=True)
-
-    return render_template(
-        "daily_report.html",
-        entries=entries,
-        start_date=start_date,
-        end_date=end_date
-    )
-
-
-# -----------------------------
-# MONTHLY REPORT
-# -----------------------------
-@app.route("/monthly-report")
-def monthly_report():
-    report_month = request.args.get("report_month")
-    report = None
-    bank_wise = []
-
-    if report_month:
-        entries = list(entries_col.find({
-            "date": {"$regex": f"^{report_month}"},
-            "shop_identifier": current_shop_identifier()
-        }))
-        report, bank_wise = build_report(entries)
-        report["month_closing_balance"] = report.pop("closing_balance")
-
-    return render_template(
-        "monthly_report.html",
-        report=report,
-        bank_wise=bank_wise,
-        selected_month=report_month
-    )
-
-
-# -----------------------------
-# REPORTS HUB
-# -----------------------------
-@app.route("/reports")
-def reports():
-    return render_template("reports.html")
-
-
-# -----------------------------
-# WEEKLY REPORT
-# -----------------------------
-@app.route("/weekly-report")
-def weekly_report():
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    start_date = monday.isoformat()
-    end_date = today.isoformat()
-
-    entries = get_entries_in_range(start_date, end_date)
-    report, bank_wise = build_report(entries)
-    report["week_closing_balance"] = report.pop("closing_balance")
-
-    return render_template(
-        "weekly_report.html",
-        report=report,
-        bank_wise=bank_wise,
-        start_date=start_date,
-        end_date=end_date
-    )
-
-
-# -----------------------------
-# CUSTOM REPORT (DATE RANGE)
-# -----------------------------
-@app.route("/custom-report")
-def custom_report():
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    report = None
-    bank_wise = []
-
-    if start_date and end_date:
-        entries = get_entries_in_range(start_date, end_date)
-        report, bank_wise = build_report(entries)
-        report["range_closing_balance"] = report.pop("closing_balance")
-
-    return render_template(
-        "custom_report.html",
-        report=report,
-        bank_wise=bank_wise,
-        start_date=start_date,
-        end_date=end_date
-    )
+register_report_routes(
+    app=app,
+    entries_col=entries_col,
+    current_shop_identifier=current_shop_identifier,
+)
 
 
 # -----------------------------

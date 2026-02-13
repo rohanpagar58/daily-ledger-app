@@ -251,8 +251,12 @@
                 // Update history with the expression
                 historyDisplay.innerText = display.value;
 
-                // Evaluate calculator expression and handle invalid input.
-                let result = eval(display.value);
+                // Allow only arithmetic characters before evaluation.
+                const sanitized = (display.value || '').replace(/[^0-9+\-*/.()]/g, '');
+                if (!sanitized) {
+                    throw new Error('Invalid expression');
+                }
+                const result = Function('"use strict"; return (' + sanitized + ')')();
                 display.value = result;
             } catch (e) {
                 display.value = 'Error';
