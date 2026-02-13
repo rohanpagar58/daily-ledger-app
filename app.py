@@ -36,6 +36,63 @@ shops_col = db["shops"]
 
 
 # -----------------------------
+# COMMON HELPERS
+# -----------------------------
+def current_shop_identifier():
+    return session.get("shop_identifier")
+
+
+def find_shop_by_identifier(identifier):
+    return shops_col.find_one({
+        "$or": [
+            {"identifier": identifier},
+            {"mobile": identifier},
+            {"email": identifier}
+        ]
+    })
+
+
+def get_shop_banks():
+    return list(banks_col.find({"shop_identifier": current_shop_identifier()}))
+
+
+def get_entries_in_range(start_date, end_date):
+    return list(entries_col.find({
+        "date": {"$gte": start_date, "$lte": end_date},
+        "shop_identifier": current_shop_identifier()
+    }))
+
+
+def parse_entry_datetime(entry):
+    d_str = entry.get("date", "1970-01-01")
+    t_str = entry.get("time", "00:00:00")
+    try:
+        return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        try:
+            return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return datetime.min
+
+
+def render_add_bank_page(error=None):
+    return render_template("add_bank.html", banks=get_shop_banks(), error=error)
+
+
+def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None):
+    if entries is None:
+        entries = []
+    return render_template(
+        "daily_entry.html",
+        banks=banks,
+        entries=entries,
+        error=error,
+        today=today,
+        selected_bank=selected_bank
+    )
+
+
+# -----------------------------
 # HELPER: RECALCULATE BALANCES
 # -----------------------------
 def recalculate_bank_balances(bank_id):
@@ -43,12 +100,9 @@ def recalculate_bank_balances(bank_id):
     Recalculate opening & remaining balances
     using entry_datetime (correct order)
     """
-    shop_identifier = session.get("shop_identifier")
-    
-    # Ensure bank_id is ObjectId for Bank lookup
-    try:
-        oid = ObjectId(bank_id)
-    except:
+    shop_identifier = current_shop_identifier()
+    oid = to_object_id(bank_id)
+    if not oid:
         return 
         
     bank = banks_col.find_one({"_id": oid, "shop_identifier": shop_identifier})
@@ -59,23 +113,7 @@ def recalculate_bank_balances(bank_id):
     str_bank_id = str(bank_id)
     
     raw_entries = list(entries_col.find({"bank_id": str_bank_id, "shop_identifier": shop_identifier}))
-
-    def get_sort_key(e):
-        d_str = e.get("date", "1970-01-01")
-        t_str = e.get("time", "00:00:00")
-        # Handle cases where time might vary in format (H:M vs H:M:S)
-        try:
-            full_dt = datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            # Fallback for time without seconds or other formats
-            try:
-                full_dt = datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
-            except ValueError:
-                 full_dt = datetime.min
-        return full_dt
-
-    # Sort python-side to be absolutely sure of order
-    entries = sorted(raw_entries, key=get_sort_key)
+    entries = sorted(raw_entries, key=parse_entry_datetime)
 
     balance = bank["opening_balance"]
     bulk_ops = []
@@ -96,7 +134,7 @@ def recalculate_bank_balances(bank_id):
         balance = balance + credited - debited
         
         # Always update entry_datetime to be correct based on date/time fields
-        correct_dt = get_sort_key(e)
+        correct_dt = parse_entry_datetime(e)
         
         # Standardize time string to HH:MM:SS
         standard_time = correct_dt.strftime("%H:%M:%S")
@@ -126,21 +164,10 @@ def build_report(entries):
     total_credit = sum(e["credited"] for e in entries)
     total_debit = sum(e["debited"] for e in entries)
 
-    def entry_dt(e):
-        dt = e.get("entry_datetime")
-        if dt:
-            return dt
-        d = e.get("date")
-        t = e.get("time") or "00:00:00"
-        try:
-            return datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return datetime.min
-
     summary = {}
     for e in entries:
         b = e["bank_name"]
-        e_dt = entry_dt(e)
+        e_dt = e.get("entry_datetime") or parse_entry_datetime(e)
         summary.setdefault(b, {"credit": 0, "debit": 0, "close": e["remaining_balance"], "dt": e_dt})
         summary[b]["credit"] += e["credited"]
         summary[b]["debit"] += e["debited"]
@@ -242,6 +269,13 @@ def parse_non_negative_float(value):
     return num
 
 
+def to_object_id(value):
+    try:
+        return ObjectId(value)
+    except Exception:
+        return None
+
+
 # -----------------------------
 # LOGIN REQUIRED (SIMPLE GUARD)
 # -----------------------------
@@ -289,13 +323,7 @@ def signup():
         elif not is_valid_shop_name(shop_name):
             error = "Shop name must be 2-60 characters"
         else:
-            existing = shops_col.find_one({
-                "$or": [
-                    {"identifier": identifier},
-                    {"mobile": identifier},
-                    {"email": identifier}
-                ]
-            })
+            existing = find_shop_by_identifier(identifier)
             if existing:
                 error = "Email or mobile already registered. Please log in."
             else:
@@ -306,7 +334,7 @@ def signup():
                 })
                 return redirect(url_for("login"))
 
-    return render_template("signup.html", error=error, csrf_token=get_csrf_token())
+    return render_template("signup.html", error=error)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -321,13 +349,7 @@ def login():
         elif not is_valid_password(password):
             error = "Password must be at least 6 characters"
         else:
-            existing = shops_col.find_one({
-                "$or": [
-                    {"identifier": identifier},
-                    {"mobile": identifier},
-                    {"email": identifier}
-                ]
-            })
+            existing = find_shop_by_identifier(identifier)
             if not existing or not check_password_hash(existing.get("password_hash", ""), password):
                 error = "Invalid email/mobile or password"
             else:
@@ -335,7 +357,7 @@ def login():
                 session["shop_identifier"] = identifier
                 return redirect(url_for("home"))
 
-    return render_template("login.html", error=error, csrf_token=get_csrf_token())
+    return render_template("login.html", error=error)
 
 
 @app.route("/logout", methods=["POST"])
@@ -356,37 +378,36 @@ def add_bank():
         bank_name = (request.form.get("bank_name") or "").strip()
         opening_balance = parse_non_negative_float(request.form.get("opening_balance"))
         if not bank_name or len(bank_name) > 60:
-            banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
-            return render_template("add_bank.html", banks=banks, csrf_token=get_csrf_token(), error="Enter a valid bank name")
+            return render_add_bank_page(error="Enter a valid bank name")
         
         # Check for duplicate bank name (case-insensitive)
         existing_bank = banks_col.find_one({
-            "shop_identifier": session.get("shop_identifier"),
+            "shop_identifier": current_shop_identifier(),
             "name": {"$regex": f"^{re.escape(bank_name)}$", "$options": "i"}
         })
         if existing_bank:
-             banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
-             return render_template("add_bank.html", banks=banks, csrf_token=get_csrf_token(), error="Bank name already exists")
+             return render_add_bank_page(error="Bank name already exists")
 
         if opening_balance is None:
-            banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
-            return render_template("add_bank.html", banks=banks, csrf_token=get_csrf_token(), error="Opening balance must be a non-negative number")
+            return render_add_bank_page(error="Opening balance must be a non-negative number")
         banks_col.insert_one({
             "name": bank_name,
             "opening_balance": opening_balance,
-            "shop_identifier": session.get("shop_identifier")
+            "shop_identifier": current_shop_identifier()
         })
         flash(f"'{bank_name}' Bank added successfully!", 'success')
         return redirect(url_for("add_bank"))
 
-    banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
-    return render_template("add_bank.html", banks=banks, csrf_token=get_csrf_token())
+    return render_add_bank_page()
 
 
 @app.route("/edit-bank/<bank_id>", methods=["GET", "POST"])
 def edit_bank(bank_id):
-    shop_identifier = session.get("shop_identifier")
-    bank = banks_col.find_one({"_id": ObjectId(bank_id), "shop_identifier": shop_identifier})
+    shop_identifier = current_shop_identifier()
+    bank_oid = to_object_id(bank_id)
+    if not bank_oid:
+        abort(404)
+    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": shop_identifier})
 
     if not bank:
         abort(404)
@@ -397,42 +418,46 @@ def edit_bank(bank_id):
         opening_balance = parse_non_negative_float(request.form.get("opening_balance"))
         
         if not bank_name or len(bank_name) > 60:
-            return render_template("edit_bank.html", bank=bank, csrf_token=get_csrf_token(), error="Enter a valid bank name")
+            return render_template("edit_bank.html", bank=bank, error="Enter a valid bank name")
         
         # Check for duplicate bank name (case-insensitive) - excluding current bank
         existing_bank = banks_col.find_one({
-            "shop_identifier": session.get("shop_identifier"),
+            "shop_identifier": shop_identifier,
             "name": {"$regex": f"^{re.escape(bank_name)}$", "$options": "i"},
-            "_id": {"$ne": ObjectId(bank_id)}
+            "_id": {"$ne": bank_oid}
         })
         if existing_bank:
-            return render_template("edit_bank.html", bank=bank, csrf_token=get_csrf_token(), error="Bank name already exists")
+            return render_template("edit_bank.html", bank=bank, error="Bank name already exists")
         
         if opening_balance is None:
-            return render_template("edit_bank.html", bank=bank, csrf_token=get_csrf_token(), error="Opening balance must be a non-negative number")
+            return render_template("edit_bank.html", bank=bank, error="Opening balance must be a non-negative number")
 
         banks_col.update_one(
-            {"_id": ObjectId(bank_id)},
+            {"_id": bank_oid},
             {"$set": {"name": bank_name, "opening_balance": opening_balance}}
         )
+        recalculate_bank_balances(bank_id)
         flash('Bank updated successfully!', 'success')
         return redirect(url_for("add_bank"))
 
-    return render_template("edit_bank.html", bank=bank, csrf_token=get_csrf_token())
+    return render_template("edit_bank.html", bank=bank)
 
 
 @app.route("/delete-bank/<bank_id>", methods=["POST"])
 def delete_bank(bank_id):
     verify_csrf()
-    shop_identifier = session.get("shop_identifier")
+    shop_identifier = current_shop_identifier()
+    bank_oid = to_object_id(bank_id)
+    if not bank_oid:
+        return redirect(url_for("add_bank"))
     
     # Verify bank belongs to user
-    bank = banks_col.find_one({"_id": ObjectId(bank_id), "shop_identifier": shop_identifier})
+    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": shop_identifier})
     if bank:
         # Delete entries associated with this bank first
         entries_col.delete_many({"bank_id": str(bank["_id"]), "shop_identifier": shop_identifier})
         # Delete the bank
-        banks_col.delete_one({"_id": ObjectId(bank_id)})
+        banks_col.delete_one({"_id": bank_oid})
     
     return redirect(url_for("add_bank"))
 
@@ -444,7 +469,7 @@ def delete_bank(bank_id):
 def add_entry():
     error = None
     today = date.today().isoformat()
-    banks = list(banks_col.find({"shop_identifier": session.get("shop_identifier")}))
+    banks = get_shop_banks()
     selected_bank = request.args.get("selected_bank")
 
     if request.method == "POST":
@@ -465,29 +490,35 @@ def add_entry():
             elif credited == 0 and debited == 0:
                 error = "Please enter credited or debited amount"
             else:
-                bank = banks_col.find_one({"_id": ObjectId(bank_id), "shop_identifier": session.get("shop_identifier")})
+                bank_oid = to_object_id(bank_id)
+                if not bank_oid:
+                    error = "Invalid bank selection"
+                    return render_daily_entry_page(banks=banks, today=today, error=error)
+
+                if not entry_date:
+                    error = "Please select a valid date"
+                    return render_daily_entry_page(banks=banks, today=today, error=error)
+
+                bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
                 if not bank:
                     error = "Invalid bank selection"
-                    return render_template(
-                        "daily_entry.html",
-                        banks=banks,
-                        entries=[],
-                        error=error,
-                        today=today,
-                        csrf_token=get_csrf_token()
-                    )
+                    return render_daily_entry_page(banks=banks, today=today, error=error)
 
-                # 🔑 FIX: create datetime using selected date + current time
-                entry_datetime = datetime.strptime(
-                    f"{entry_date} {datetime.now().strftime('%H:%M:%S')}",
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                # Create datetime using selected date + current time.
+                try:
+                    entry_datetime = datetime.strptime(
+                        f"{entry_date} {datetime.now().strftime('%H:%M:%S')}",
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                except ValueError:
+                    error = "Please select a valid date"
+                    return render_daily_entry_page(banks=banks, today=today, error=error)
 
                 last_entry = entries_col.find_one(
                     {
                         "bank_id": bank_id,
                         "date": {"$lte": entry_date},
-                        "shop_identifier": session.get("shop_identifier")
+                        "shop_identifier": current_shop_identifier()
                     },
                     sort=[("entry_datetime", -1)]
                 )
@@ -502,14 +533,14 @@ def add_entry():
                 entries_col.insert_one({
                     "date": entry_date,
                     "time": entry_datetime.strftime("%H:%M:%S"),
-                    "entry_datetime": entry_datetime,   # ✅ critical fix
+                    "entry_datetime": entry_datetime,
                     "bank_id": bank_id,
                     "bank_name": bank["name"],
                     "opening_balance": opening_balance,
                     "credited": credited,
                     "debited": debited,
                     "remaining_balance": remaining_balance,
-                    "shop_identifier": session.get("shop_identifier")
+                    "shop_identifier": current_shop_identifier()
                 })
 
                 # Recalculate balances to ensure consistency, especially for backdated entries
@@ -525,20 +556,18 @@ def add_entry():
     from_date = (date.today() - timedelta(days=6)).isoformat()
     entries = list(
         entries_col.find({
-            "shop_identifier": session.get("shop_identifier"),
+            "shop_identifier": current_shop_identifier(),
             "date": {"$gte": from_date}
         })
         .sort([("date", -1), ("time", -1)])
     )
 
-    return render_template(
-        "daily_entry.html",
+    return render_daily_entry_page(
         banks=banks,
         entries=entries,
         error=error,
         today=today,
-        selected_bank=selected_bank,
-        csrf_token=get_csrf_token()
+        selected_bank=selected_bank
     )
 
 
@@ -547,7 +576,10 @@ def add_entry():
 # -----------------------------
 @app.route("/bank-balance/<bank_id>/<entry_date>")
 def bank_balance(bank_id, entry_date):
-    bank = banks_col.find_one({"_id": ObjectId(bank_id), "shop_identifier": session.get("shop_identifier")})
+    bank_oid = to_object_id(bank_id)
+    if not bank_oid:
+        return jsonify({"balance": 0})
+    bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
     if not bank:
         return jsonify({"balance": 0})
 
@@ -555,7 +587,7 @@ def bank_balance(bank_id, entry_date):
         {
             "bank_id": bank_id,
             "date": {"$lte": entry_date},
-            "shop_identifier": session.get("shop_identifier")
+            "shop_identifier": current_shop_identifier()
         },
         sort=[("entry_datetime", -1)]
     )
@@ -573,7 +605,10 @@ def bank_balance(bank_id, entry_date):
 # -----------------------------
 @app.route("/edit-entry/<entry_id>", methods=["GET", "POST"])
 def edit_entry(entry_id):
-    entry = entries_col.find_one({"_id": ObjectId(entry_id), "shop_identifier": session.get("shop_identifier")})
+    entry_oid = to_object_id(entry_id)
+    if not entry_oid:
+        return "Entry not found", 404
+    entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
     if not entry:
         return "Entry not found", 404
     today = date.today().isoformat()
@@ -592,7 +627,7 @@ def edit_entry(entry_id):
             return "Enter either credited or debited amount, not both", 400
 
         entries_col.update_one(
-            {"_id": ObjectId(entry_id)},
+            {"_id": entry_oid},
             {"$set": {"credited": credited, "debited": debited}}
         )
 
@@ -605,7 +640,7 @@ def edit_entry(entry_id):
             
         return redirect(url_for("add_entry"))
 
-    return render_template("edit_entry.html", entry=entry, csrf_token=get_csrf_token())
+    return render_template("edit_entry.html", entry=entry)
 
 
 # -----------------------------
@@ -614,7 +649,10 @@ def edit_entry(entry_id):
 @app.route("/delete-entry/<entry_id>", methods=["POST"])
 def delete_entry(entry_id):
     verify_csrf()
-    entry = entries_col.find_one({"_id": ObjectId(entry_id), "shop_identifier": session.get("shop_identifier")})
+    entry_oid = to_object_id(entry_id)
+    if not entry_oid:
+        return "Entry not found", 404
+    entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
     if not entry:
         return "Entry not found", 404
     today = date.today().isoformat()
@@ -622,7 +660,7 @@ def delete_entry(entry_id):
     if entry["date"] != today:
         return "Deleting past entries is not allowed", 403
 
-    entries_col.delete_one({"_id": ObjectId(entry_id)})
+    entries_col.delete_one({"_id": entry_oid})
     recalculate_bank_balances(entry["bank_id"])
     flash('Entry deleted successfully!', 'success')
     return redirect(url_for("add_entry"))
@@ -638,13 +676,7 @@ def daily_report():
     entries = []
 
     if start_date and end_date:
-        shop_identifier = session.get("shop_identifier")
-
-
-        entries = list(entries_col.find({
-            "date": {"$gte": start_date, "$lte": end_date},
-            "shop_identifier": shop_identifier
-        }))
+        entries = get_entries_in_range(start_date, end_date)
         
         # Sort entries by date/time desc for the detailed table
         entries.sort(key=lambda x: (x['date'], x['time']), reverse=True)
@@ -669,7 +701,7 @@ def monthly_report():
     if report_month:
         entries = list(entries_col.find({
             "date": {"$regex": f"^{report_month}"},
-            "shop_identifier": session.get("shop_identifier")
+            "shop_identifier": current_shop_identifier()
         }))
         report, bank_wise = build_report(entries)
         report["month_closing_balance"] = report.pop("closing_balance")
@@ -691,29 +723,16 @@ def reports():
 
 
 # -----------------------------
-# SYNC BALANCES (MANUAL FIX)
-# -----------------------------
-
-
-# -----------------------------
 # WEEKLY REPORT
 # -----------------------------
 @app.route("/weekly-report")
 def weekly_report():
-    start_date = None
-    end_date = None
-    report = None
-    bank_wise = []
-
     today = date.today()
     monday = today - timedelta(days=today.weekday())
     start_date = monday.isoformat()
     end_date = today.isoformat()
 
-    entries = list(entries_col.find({
-        "date": {"$gte": start_date, "$lte": end_date},
-        "shop_identifier": session.get("shop_identifier")
-    }))
+    entries = get_entries_in_range(start_date, end_date)
     report, bank_wise = build_report(entries)
     report["week_closing_balance"] = report.pop("closing_balance")
 
@@ -737,10 +756,7 @@ def custom_report():
     bank_wise = []
 
     if start_date and end_date:
-        entries = list(entries_col.find({
-            "date": {"$gte": start_date, "$lte": end_date},
-            "shop_identifier": session.get("shop_identifier")
-        }))
+        entries = get_entries_in_range(start_date, end_date)
         report, bank_wise = build_report(entries)
         report["range_closing_balance"] = report.pop("closing_balance")
 
