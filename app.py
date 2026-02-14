@@ -22,8 +22,9 @@ load_dotenv()
 app = Flask(__name__)
 # Use SECRET_KEY from environment or fall back to a random one (not recommended for production persistence)
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
+session_cookie_secure = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=session_cookie_secure,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
@@ -69,10 +70,20 @@ def find_shop_by_identifier(identifier):
 def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None):
     if entries is None:
         entries = []
+    grouped_entries = []
+    current_date = None
+    for entry in entries:
+        entry_date = entry.get("date")
+        if entry_date != current_date:
+            grouped_entries.append({"date": entry_date, "rows": [entry]})
+            current_date = entry_date
+        else:
+            grouped_entries[-1]["rows"].append(entry)
     return render_template(
         "daily_entry.html",
         banks=banks,
         entries=entries,
+        grouped_entries=grouped_entries,
         error=error,
         today=today,
         selected_bank=selected_bank
@@ -461,9 +472,17 @@ def edit_entry(entry_id):
             return "Enter either credited or debited amount, not both", 400
 
         try:
+            updated_at = datetime.now()
             entries_col.update_one(
                 {"_id": entry_oid},
-                {"$set": {"credited": credited, "debited": debited}}
+                {
+                    "$set": {
+                        "credited": credited,
+                        "debited": debited,
+                        "time": updated_at.strftime("%H:%M:%S"),
+                        "entry_datetime": updated_at,
+                    }
+                }
             )
             recalculate_bank_balances(entry["bank_id"])
         except PyMongoError as e:

@@ -176,6 +176,45 @@ h6 {
     border-bottom-color: var(--border-color);
 }
 
+.recent-entries-table td {
+    font-size: 0.90rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+}
+
+.recent-entries-table th {
+    color: #000;
+    font-weight: 700;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    vertical-align: middle;
+}
+
+.recent-entries-table > thead > tr > th {
+    background-color: #fff !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #6b7280;
+}
+
+/* Global icon-style Edit/Delete buttons (small action buttons only) */
+.btn-action-icon {
+    background-color: transparent !important;
+    color: #4b5563 !important;
+}
+button.btn-action-icon[title="Delete"] {
+    color: #dc3545 !important;
+}
+
+@media (max-width: 767.98px) {
+    .recent-entries-wrap {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+    }
+}
+
 /* Utilities */
 .shadow-soft {
     box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08);

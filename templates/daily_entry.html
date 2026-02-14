@@ -81,16 +81,24 @@
         </div>
 
         <!-- Recent Entries -->
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5>Recent Entries</h5>
+        <div>
+            <h5>Recent Entries</h5>
 
-                {% if entries %}
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+            {% if entries %}
+            {% for date_group in grouped_entries %}
+            <div class="mb-3">
+                <div class="fw-semibold text-muted small mb-2">
+                    {% if date_group.date == today %}
+                    Today - {{ date_group.date[8:10] }}/{{ date_group.date[5:7] }}/{{ date_group.date[0:4] }}
+                    {% else %}
+                    {{ date_group.date[8:10] }}/{{ date_group.date[5:7] }}/{{ date_group.date[0:4] }}
+                    {% endif %}
+                </div>
+                <div class="table-responsive recent-entries-wrap">
+                    <table class="table table-sm align-middle recent-entries-table mb-0">
                         <thead>
                             <tr>
-                                <th>Date/Time</th>
+                                <th>Date/<br>Time</th>
                                 <th>Bank</th>
                                 <th>Opening</th>
                                 <th>Credited</th>
@@ -101,18 +109,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for e in entries %}
-                            {% if loop.first or (loop.previtem and e.date != loop.previtem.date) %}
-                            <tr class="table-light">
-                                <td colspan="7" class="text-center fw-bold text-muted small py-2">
-                                    {% if e.date == today %}
-                                    Today - {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[0:4] }}
-                                    {% else %}
-                                    {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[0:4] }}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endif %}
+                            {% for e in date_group.rows %}
                             <tr>
                                 <td>
                                     <div class="fw-semibold">{{ e.date[8:10] }}/{{ e.date[5:7] }}</div>
@@ -126,7 +123,7 @@
                                 <td>
                                     {% if e.date == today %}
                                     <div class="d-flex gap-1 justify-content-center">
-                                        <a href="/edit-entry/{{ e._id }}" class="btn btn-sm btn-warning px-2 py-1"
+                                        <a href="/edit-entry/{{ e._id }}" class="btn btn-sm btn-action-icon px-2 py-1"
                                             title="Edit">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                                                 fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
@@ -138,7 +135,7 @@
                                         </a>
                                         <form method="POST" action="/delete-entry/{{ e._id }}" class="d-inline">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button class="btn btn-sm btn-danger px-2 py-1" title="Delete"
+                                            <button class="btn btn-sm btn-action-icon px-2 py-1" title="Delete"
                                                 onclick="return confirm('Are you sure?');">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                                                     fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
@@ -157,10 +154,11 @@
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <p class="text-muted">No entries yet.</p>
-                {% endif %}
             </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted">No entries yet.</p>
+            {% endif %}
         </div>
     </div>
 </div>
