@@ -20,47 +20,43 @@
     <button class="btn btn-primary w-100 py-3 shadow-soft">Generate Report</button>
 </form>
 
-{% if entries %}
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-sm align-middle">
-                <thead>
-                    <tr>
-                        <th>Date/Time</th>
-                        <th>Bank</th>
-                        <th>Opening</th>
-                        <th>Credited</th>
-                        <th>Debited</th>
-                        <th>Remaining</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for e in entries %}
-                    {% if loop.first or (loop.previtem and e.date != loop.previtem.date) %}
-                    <tr class="table-light">
-                        <td colspan="6" class="text-center fw-bold text-muted small py-2">
-                            {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[0:4] }}
-                        </td>
-                    </tr>
-                    {% endif %}
-                    <tr>
-                        <td>
-                            <div class="fw-semibold">{{ e.date[8:10] }}/{{ e.date[5:7] }}</div>
-                            <div class="text-muted small">{{ e.time[0:5] }}</div>
-                        </td>
-                        <td>{{ e.bank_name }}</td>
-                        <td>{{ e.opening_balance }}</td>
-                        <td class="text-success">{{ e.credited }}</td>
-                        <td class="text-danger">{{ e.debited }}</td>
-                        <td>{{ e.remaining_balance }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+{% if grouped_entries %}
+{% for date_group in grouped_entries %}
+<div class="mb-3">
+    <div class="fw-semibold text-muted small mb-2">
+        {{ date_group.date[8:10] }}/{{ date_group.date[5:7] }}/{{ date_group.date[0:4] }}
+    </div>
+    <div class="table-responsive recent-entries-wrap">
+        <table class="table table-sm align-middle recent-entries-table mb-0">
+            <thead>
+                <tr>
+                    <th>Date/<br>Time</th>
+                    <th>Bank</th>
+                    <th>Opening</th>
+                    <th>Credited</th>
+                    <th>Debited</th>
+                    <th>Remaining</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in date_group.rows %}
+                <tr>
+                    <td>
+                        <div class="fw-semibold">{{ e.date[8:10] }}/{{ e.date[5:7] }}</div>
+                        <div class="text-muted small">{{ e.time[0:5] }}</div>
+                    </td>
+                    <td>{{ e.bank_name }}</td>
+                    <td>{{ e.opening_balance }}</td>
+                    <td class="text-success">{{ e.credited }}</td>
+                    <td class="text-danger">{{ e.debited }}</td>
+                    <td>{{ e.remaining_balance }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
+{% endfor %}
 {% elif start_date %}
 <p class="text-muted">No entries found for this range.</p>
 {% endif %}

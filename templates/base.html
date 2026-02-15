@@ -130,7 +130,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        <div class="alert flash-alert alert-{{ category }} alert-dismissible fade show" role="alert">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
@@ -272,7 +272,7 @@
     <!-- Auto-hide alerts script (global) -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const alerts = document.querySelectorAll('.alert');
+            const alerts = document.querySelectorAll('.flash-alert');
             alerts.forEach(function (alert) {
                 // Default timeout 5 seconds
                 let timeout = 5000;
@@ -290,7 +290,7 @@
     </script>
     <style>
         /* Floating Alert Styles */
-        .alert {
+        .flash-alert {
             position: fixed;
             top: 20px;
             left: 50%;

@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Weekly Report - Daily Ledger{% endblock %}
+{% block title %}Yearly Report - Daily Ledger{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-    <h1 class="h2">Weekly Report</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <span class="text-muted">{{ start_date }} to {{ end_date }}</span>
+<h4>Yearly Report</h4>
+<form method="GET" class="mb-4">
+    <div class="mb-3">
+        <label class="form-label small text-muted">Select Year</label>
+        <input type="number" name="report_year" class="form-control py-3" value="{{ selected_year or '' }}" min="2000" max="2100" step="1" placeholder="YYYY" required>
     </div>
-</div>
+    <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
+</form>
 
 {% if report %}
 <div class="row">
@@ -33,7 +35,7 @@
         <div class="card card-stat card-stat-info h-100">
             <div class="card-header py-2 text-uppercase small">Closing</div>
             <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.week_closing_balance }}</h5>
+                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.year_closing_balance }}</h5>
             </div>
         </div>
     </div>
@@ -47,7 +49,6 @@
     </div>
 </div>
 
-<!-- Bank Wise Details -->
 <div class="card shadow-sm mt-4">
     <div class="card-header">Bank-wise Summary</div>
     <div class="card-body p-0">
@@ -76,7 +77,7 @@
     </div>
 </div>
 
-{% else %}
-<p>No data found for this week.</p>
+{% elif selected_year %}
+<p class="text-muted">No data found for the selected year.</p>
 {% endif %}
 {% endblock %}

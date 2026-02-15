@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 from banks import register_bank_routes
 from reports import register_report_routes
+from utils import group_entries_by_date
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -70,20 +71,10 @@ def find_shop_by_identifier(identifier):
 def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None):
     if entries is None:
         entries = []
-    grouped_entries = []
-    current_date = None
-    for entry in entries:
-        entry_date = entry.get("date")
-        if entry_date != current_date:
-            grouped_entries.append({"date": entry_date, "rows": [entry]})
-            current_date = entry_date
-        else:
-            grouped_entries[-1]["rows"].append(entry)
     return render_template(
         "daily_entry.html",
         banks=banks,
-        entries=entries,
-        grouped_entries=grouped_entries,
+        grouped_entries=group_entries_by_date(entries),
         error=error,
         today=today,
         selected_bank=selected_bank
@@ -265,13 +256,15 @@ bank_module = register_bank_routes(
     app=app,
     banks_col=banks_col,
     entries_col=entries_col,
+    shops_col=shops_col,
     parse_non_negative_float=parse_non_negative_float,
+    check_password_hash_fn=check_password_hash,
     to_object_id=to_object_id,
     verify_csrf=verify_csrf,
     current_shop_identifier=current_shop_identifier,
 )
 get_shop_banks = bank_module["get_shop_banks"]
-recalculate_bank_balances = bank_module["recalculate_bank_balances"]
+recalculate_bank_balances_from_date = bank_module["recalculate_bank_balances_from_date"]
 
 
 # -----------------------------
@@ -287,7 +280,7 @@ def add_entry():
     if request.method == "POST":
         verify_csrf()
         bank_id = request.form.get("bank_id")
-        entry_date = request.form.get("entry_date")
+        entry_date = today
 
         if not bank_id:
             error = "Please select a bank"
@@ -307,10 +300,6 @@ def add_entry():
                     error = "Invalid bank selection"
                     return render_daily_entry_page(banks=banks, today=today, error=error)
 
-                if not entry_date:
-                    error = "Please select a valid date"
-                    return render_daily_entry_page(banks=banks, today=today, error=error)
-
                 try:
                     bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
                 except PyMongoError as e:
@@ -321,15 +310,7 @@ def add_entry():
                     error = "Invalid bank selection"
                     return render_daily_entry_page(banks=banks, today=today, error=error)
 
-                # Create datetime using selected date + current time.
-                try:
-                    entry_datetime = datetime.strptime(
-                        f"{entry_date} {datetime.now().strftime('%H:%M:%S')}",
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                except ValueError:
-                    error = "Please select a valid date"
-                    return render_daily_entry_page(banks=banks, today=today, error=error)
+                entry_datetime = datetime.now()
 
                 try:
                     last_entry = entries_col.find_one(
@@ -368,7 +349,7 @@ def add_entry():
                     if not result.inserted_id:
                         flash("Failed to save entry.", "danger")
                         return redirect(url_for("add_entry"))
-                    recalculate_bank_balances(bank_id)
+                    recalculate_bank_balances_from_date(bank_id, entry_date)
                 except PyMongoError as e:
                     app.logger.error(f"Database error while creating entry: {e}")
                     flash("Database error occurred. Please try again.", "danger")
@@ -484,7 +465,7 @@ def edit_entry(entry_id):
                     }
                 }
             )
-            recalculate_bank_balances(entry["bank_id"])
+            recalculate_bank_balances_from_date(entry["bank_id"], today)
         except PyMongoError as e:
             app.logger.error(f"Database error while updating entry: {e}")
             flash("Database error occurred. Please try again.", "danger")
@@ -524,7 +505,7 @@ def delete_entry(entry_id):
 
     try:
         entries_col.delete_one({"_id": entry_oid})
-        recalculate_bank_balances(entry["bank_id"])
+        recalculate_bank_balances_from_date(entry["bank_id"], today)
     except PyMongoError as e:
         app.logger.error(f"Database error while deleting entry: {e}")
         flash("Database error occurred. Please try again.", "danger")
@@ -540,11 +521,15 @@ register_report_routes(
     app=app,
     entries_col=entries_col,
     current_shop_identifier=current_shop_identifier,
+    shops_col=shops_col,
+    verify_csrf=verify_csrf,
+    check_password_hash_fn=check_password_hash,
+    recalculate_bank_balances_from_date=recalculate_bank_balances_from_date,
 )
 
 
 # -----------------------------
-# RUN APP
+# RUN APP 
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="192.168.0.101", port=5000, debug=True)
+    app.run(host="192.168.0.107", port=5000, debug=True)

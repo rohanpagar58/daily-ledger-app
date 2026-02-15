@@ -1,9 +1,19 @@
-from datetime import date, datetime, timedelta
-from flask import current_app, flash, render_template, request
+import re
+from datetime import date, timedelta
+from flask import current_app, flash, redirect, render_template, request, url_for
 from pymongo.errors import PyMongoError
+from utils import group_entries_by_date, parse_entry_datetime
 
 
-def register_report_routes(app, entries_col, current_shop_identifier):
+def register_report_routes(
+    app,
+    entries_col,
+    current_shop_identifier,
+    shops_col,
+    verify_csrf,
+    check_password_hash_fn,
+    recalculate_bank_balances_from_date,
+):
     def get_entries_in_range(start_date, end_date):
         try:
             return list(entries_col.find({
@@ -13,17 +23,6 @@ def register_report_routes(app, entries_col, current_shop_identifier):
         except PyMongoError as e:
             current_app.logger.error(f"Database error while loading range entries: {e}")
             return []
-
-    def parse_entry_datetime(entry):
-        d_str = entry.get("date", "1970-01-01")
-        t_str = entry.get("time", "00:00:00")
-        try:
-            return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            try:
-                return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
-            except ValueError:
-                return datetime.min
 
     def build_report(entries):
         total_credit = sum(e["credited"] for e in entries)
@@ -50,42 +49,49 @@ def register_report_routes(app, entries_col, current_shop_identifier):
             })
         bank_wise.sort(key=lambda x: x["bank"].lower() if isinstance(x["bank"], str) else "")
 
-        top_banks = sorted(bank_wise, key=lambda x: x["total_credit"] + x["total_debit"], reverse=True)
-        most_used = top_banks[0]["bank"] if top_banks else "N/A"
-        top_bank_names = [b["bank"] for b in top_banks[:3]]
-
-        highest_amt = 0
-        highest_bank = "N/A"
-        for e in entries:
-            amt = max(e["credited"], e["debited"])
-            if amt >= highest_amt:
-                highest_amt = amt
-                highest_bank = e["bank_name"]
+        most_used = (
+            max(bank_wise, key=lambda x: x["total_credit"] + x["total_debit"])["bank"]
+            if bank_wise else "N/A"
+        )
 
         report = {
             "total_credit": total_credit,
             "total_debit": total_debit,
             "most_used_bank": most_used,
-            "highest_amount": highest_amt,
-            "highest_bank": highest_bank,
-            "top_banks": top_bank_names,
             "closing_balance": sum(b["closing_balance"] for b in bank_wise),
         }
         return report, bank_wise
+
+    def get_current_shop():
+        identifier = current_shop_identifier()
+        if not identifier:
+            return None
+        try:
+            return shops_col.find_one({
+                "$or": [
+                    {"identifier": identifier},
+                    {"mobile": identifier},
+                    {"email": identifier},
+                ]
+            })
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while loading current shop: {e}")
+            return None
 
     @app.route("/daily-report")
     def daily_report():
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
-        entries = []
+        grouped_entries = []
 
         if start_date and end_date:
             entries = get_entries_in_range(start_date, end_date)
             entries.sort(key=lambda x: (x["date"], x["time"]), reverse=True)
+            grouped_entries = group_entries_by_date(entries)
 
         return render_template(
             "daily_report.html",
-            entries=entries,
+            grouped_entries=grouped_entries,
             start_date=start_date,
             end_date=end_date,
         )
@@ -117,9 +123,102 @@ def register_report_routes(app, entries_col, current_shop_identifier):
             selected_month=report_month,
         )
 
+    @app.route("/yearly-report")
+    def yearly_report():
+        report_year = request.args.get("report_year")
+        selected_year = report_year or str(date.today().year)
+        report = None
+        bank_wise = []
+
+        if report_year:
+            try:
+                entries = list(entries_col.find({
+                    "date": {"$regex": f"^{report_year}-"},
+                    "shop_identifier": current_shop_identifier(),
+                }))
+                report, bank_wise = build_report(entries)
+                report["year_closing_balance"] = report.pop("closing_balance")
+            except PyMongoError as e:
+                current_app.logger.error(f"Database error while loading yearly report: {e}")
+                flash("Database error occurred. Please try again.", "danger")
+                report = None
+                bank_wise = []
+
+        return render_template(
+            "yearly_report.html",
+            report=report,
+            bank_wise=bank_wise,
+            selected_year=selected_year,
+        )
+
     @app.route("/reports")
     def reports():
         return render_template("reports.html")
+
+    @app.route("/reports/delete-data", methods=["POST"])
+    def delete_report_data():
+        verify_csrf()
+
+        delete_type = (request.form.get("delete_type") or "").strip().lower()
+        period_value = (request.form.get("period_value") or "").strip()
+        password = request.form.get("password") or ""
+
+        if delete_type not in {"month", "year"}:
+            flash("Please select month or year.", "danger")
+            return redirect(url_for("reports"))
+
+        if delete_type == "month" and not re.fullmatch(r"\d{4}-\d{2}", period_value):
+            flash("Please select a valid month.", "danger")
+            return redirect(url_for("reports"))
+
+        if delete_type == "year" and not re.fullmatch(r"\d{4}", period_value):
+            flash("Please select a valid year.", "danger")
+            return redirect(url_for("reports"))
+
+        shop = get_current_shop()
+        if not shop:
+            flash("Unable to verify account. Please log in again.", "danger")
+            return redirect(url_for("login"))
+
+        if not password or not check_password_hash_fn(shop.get("password_hash", ""), password):
+            flash("Incorrect password. Data was not deleted.", "danger")
+            return redirect(url_for("reports"))
+
+        if delete_type == "month":
+            date_regex = f"^{period_value}"
+            period_label = f"Month {period_value}"
+            recalc_start_date = f"{period_value}-01"
+        else:
+            date_regex = f"^{period_value}-"
+            period_label = f"Year {period_value}"
+            recalc_start_date = f"{period_value}-01-01"
+
+        query = {
+            "date": {"$regex": date_regex},
+            "shop_identifier": current_shop_identifier(),
+        }
+
+        try:
+            affected_bank_ids = entries_col.distinct("bank_id", query)
+            delete_result = entries_col.delete_many(query)
+
+            for bank_id in affected_bank_ids:
+                try:
+                    recalculate_bank_balances_from_date(bank_id, recalc_start_date)
+                except Exception as recalc_error:
+                    current_app.logger.error(
+                        f"Balance recalc failed for bank_id={bank_id}: {recalc_error}"
+                    )
+
+            flash(
+                f"{period_label} data deleted successfully. {delete_result.deleted_count} entries removed.",
+                "success",
+            )
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while deleting report data: {e}")
+            flash("Database error occurred. Please try again.", "danger")
+
+        return redirect(url_for("reports"))
 
     @app.route("/weekly-report")
     def weekly_report():

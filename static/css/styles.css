@@ -170,6 +170,11 @@ h6 {
     border-bottom-width: 1px;
 }
 
+.table thead th {
+    text-align: center;
+    vertical-align: middle;
+}
+
 .table td {
     vertical-align: middle;
     padding: 1rem 0.75rem;
@@ -193,18 +198,20 @@ h6 {
 }
 
 .recent-entries-table > thead > tr > th {
-    background-color: #fff !important;
-    box-shadow: none !important;
+    background-color: #fff;
+    box-shadow: none;
     border-bottom: 1px solid #6b7280;
 }
 
 /* Global icon-style Edit/Delete buttons (small action buttons only) */
 .btn-action-icon {
-    background-color: transparent !important;
-    color: #4b5563 !important;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    color: #4b5563;
 }
 button.btn-action-icon[title="Delete"] {
-    color: #dc3545 !important;
+    color: #dc3545;
 }
 
 @media (max-width: 767.98px) {

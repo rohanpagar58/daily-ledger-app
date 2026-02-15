@@ -1,30 +1,21 @@
 import re
-from datetime import datetime
 from flask import abort, current_app, flash, redirect, render_template, request, url_for
 from pymongo import UpdateOne
 from pymongo.errors import PyMongoError
+from utils import parse_entry_datetime
 
 
 def register_bank_routes(
     app,
     banks_col,
     entries_col,
+    shops_col,
     parse_non_negative_float,
+    check_password_hash_fn,
     to_object_id,
     verify_csrf,
     current_shop_identifier,
 ):
-    def parse_entry_datetime(entry):
-        d_str = entry.get("date", "1970-01-01")
-        t_str = entry.get("time", "00:00:00")
-        try:
-            return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            try:
-                return datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
-            except ValueError:
-                return datetime.min
-
     def get_shop_banks():
         try:
             return list(banks_col.find({"shop_identifier": current_shop_identifier()}))
@@ -35,7 +26,23 @@ def register_bank_routes(
     def render_add_bank_page(error=None):
         return render_template("add_bank.html", banks=get_shop_banks(), error=error)
 
-    def recalculate_bank_balances(bank_id):
+    def get_current_shop():
+        identifier = current_shop_identifier()
+        if not identifier:
+            return None
+        try:
+            return shops_col.find_one({
+                "$or": [
+                    {"identifier": identifier},
+                    {"mobile": identifier},
+                    {"email": identifier},
+                ]
+            })
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while loading current shop: {e}")
+            return None
+
+    def recalculate_bank_balances_from_date(bank_id, start_date):
         try:
             shop_identifier = current_shop_identifier()
             oid = to_object_id(bank_id)
@@ -47,10 +54,27 @@ def register_bank_routes(
                 return
 
             str_bank_id = str(bank_id)
-            raw_entries = list(entries_col.find({"bank_id": str_bank_id, "shop_identifier": shop_identifier}))
+            prev_entry = entries_col.find_one(
+                {
+                    "bank_id": str_bank_id,
+                    "shop_identifier": shop_identifier,
+                    "date": {"$lt": start_date},
+                },
+                sort=[("entry_datetime", -1)],
+            )
+            base_balance = (
+                float(prev_entry.get("remaining_balance", bank["opening_balance"]))
+                if prev_entry else float(bank["opening_balance"])
+            )
+
+            raw_entries = list(entries_col.find({
+                "bank_id": str_bank_id,
+                "shop_identifier": shop_identifier,
+                "date": {"$gte": start_date},
+            }))
             entries = sorted(raw_entries, key=parse_entry_datetime)
 
-            balance = bank["opening_balance"]
+            balance = base_balance
             bulk_ops = []
 
             for e in entries:
@@ -82,7 +106,7 @@ def register_bank_routes(
             if bulk_ops:
                 entries_col.bulk_write(bulk_ops)
         except PyMongoError as e:
-            current_app.logger.error(f"Database error while recalculating balances: {e}")
+            current_app.logger.error(f"Database error while recalculating balances from date: {e}")
 
     @app.route("/add-bank", methods=["GET", "POST"])
     def add_bank():
@@ -168,7 +192,12 @@ def register_bank_routes(
 
             try:
                 banks_col.update_one({"_id": bank_oid}, {"$set": {"name": bank_name, "opening_balance": opening_balance}})
-                recalculate_bank_balances(bank_id)
+                earliest_entry = entries_col.find_one(
+                    {"bank_id": str(bank["_id"]), "shop_identifier": shop_identifier},
+                    sort=[("entry_datetime", 1)],
+                )
+                if earliest_entry:
+                    recalculate_bank_balances_from_date(bank_id, earliest_entry["date"])
             except PyMongoError as e:
                 current_app.logger.error(f"Database error while updating bank: {e}")
                 flash("Database error occurred. Please try again.", "danger")
@@ -181,9 +210,19 @@ def register_bank_routes(
     @app.route("/delete-bank/<bank_id>", methods=["POST"])
     def delete_bank(bank_id):
         verify_csrf()
+        password = request.form.get("password") or ""
         shop_identifier = current_shop_identifier()
         bank_oid = to_object_id(bank_id)
         if not bank_oid:
+            return redirect(url_for("add_bank"))
+
+        shop = get_current_shop()
+        if not shop:
+            flash("Unable to verify account. Please log in again.", "danger")
+            return redirect(url_for("login"))
+
+        if not password or not check_password_hash_fn(shop.get("password_hash", ""), password):
+            flash("Incorrect password. Bank was not deleted.", "danger")
             return redirect(url_for("add_bank"))
 
         try:
@@ -191,6 +230,8 @@ def register_bank_routes(
             if bank:
                 entries_col.delete_many({"bank_id": str(bank["_id"]), "shop_identifier": shop_identifier})
                 banks_col.delete_one({"_id": bank_oid})
+                bank_name = bank.get("name", "Bank")
+                flash(f"'{bank_name}' bank deleted successfully.", "success")
         except PyMongoError as e:
             current_app.logger.error(f"Database error while deleting bank: {e}")
             flash("Database error occurred. Please try again.", "danger")
@@ -200,5 +241,5 @@ def register_bank_routes(
 
     return {
         "get_shop_banks": get_shop_banks,
-        "recalculate_bank_balances": recalculate_bank_balances,
+        "recalculate_bank_balances_from_date": recalculate_bank_balances_from_date,
     }

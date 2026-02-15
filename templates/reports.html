@@ -18,14 +18,151 @@
             </a>
             <a href="/monthly-report" class="list-group-item list-group-item-action">
                 <strong>Monthly Report</strong>
-                <p class="mb-0 small text-muted">Monthly overview and top banks.</p>
+                <p class="mb-0 small text-muted">Monthly summary of credits/debits per bank.</p>
+            </a>
+            <a href="/yearly-report" class="list-group-item list-group-item-action">
+                <strong>Yearly Report</strong>
+                <p class="mb-0 small text-muted">Yearly overview and top banks.</p>
             </a>
             <a href="/custom-report" class="list-group-item list-group-item-action">
                 <strong>Custom Report</strong>
-                <p class="mb-0 small text-muted">Filter by specific date range.</p>
+                <p class="mb-0 small text-muted">Summary for specific date range.</p>
             </a>
         </div>
-
     </div>
 </div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h5 class="mb-3">Delete Data</h5>
+        <p class="small text-muted mb-3">Delete entries by month or year for your account.</p>
+
+        <form id="deleteDataSelectionForm" onsubmit="return false;">
+            <div class="mb-3">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="delete_type_select" id="deleteTypeMonth" value="month" checked>
+                    <label class="form-check-label" for="deleteTypeMonth">Month</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="delete_type_select" id="deleteTypeYear" value="year">
+                    <label class="form-check-label" for="deleteTypeYear">Year</label>
+                </div>
+            </div>
+
+            <div class="mb-3" id="monthInputWrap">
+                <label class="form-label small text-muted">Select Month</label>
+                <input type="month" id="deleteMonth" class="form-control py-3 date-input-placeholder" data-placeholder="Select Month" required>
+            </div>
+
+            <div class="mb-3 d-none" id="yearInputWrap">
+                <label class="form-label small text-muted">Select Year</label>
+                <input type="number" id="deleteYear" class="form-control py-3" min="2000" max="2100" step="1" placeholder="YYYY" disabled>
+            </div>
+
+            <button type="button" id="openDeleteConfirmBtn" class="btn btn-danger w-100 py-3">Delete Data</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteDataConfirmModal" tabindex="-1" aria-labelledby="deleteDataConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('delete_report_data') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteDataConfirmModalLabel">Confirm Data Deletion</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger mb-3">
+                        If you delete this data, it cannot be restored.
+                    </div>
+                    <p class="mb-2"><strong id="deleteSelectionLabel">Selected Month:</strong> <span id="deletePeriodPreview">-</span></p>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="delete_type" id="confirmDeleteType">
+                    <input type="hidden" name="period_value" id="confirmPeriodValue">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Enter your password to confirm data deletion.</label>
+                        <input type="password" name="password" class="form-control py-3" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const monthRadio = document.getElementById("deleteTypeMonth");
+        const yearRadio = document.getElementById("deleteTypeYear");
+        const monthWrap = document.getElementById("monthInputWrap");
+        const yearWrap = document.getElementById("yearInputWrap");
+        const monthInput = document.getElementById("deleteMonth");
+        const yearInput = document.getElementById("deleteYear");
+        const openBtn = document.getElementById("openDeleteConfirmBtn");
+        const preview = document.getElementById("deletePeriodPreview");
+        const selectionLabel = document.getElementById("deleteSelectionLabel");
+        const confirmDeleteType = document.getElementById("confirmDeleteType");
+        const confirmPeriodValue = document.getElementById("confirmPeriodValue");
+        const confirmModalElement = document.getElementById("deleteDataConfirmModal");
+        const passwordInput = confirmModalElement.querySelector('input[name="password"]');
+        const confirmModal = new bootstrap.Modal(confirmModalElement);
+
+        function syncSelectionUI() {
+            if (monthRadio.checked) {
+                monthWrap.classList.remove("d-none");
+                yearWrap.classList.add("d-none");
+                monthInput.disabled = false;
+                monthInput.required = true;
+                yearInput.disabled = true;
+                yearInput.required = false;
+            } else {
+                monthWrap.classList.add("d-none");
+                yearWrap.classList.remove("d-none");
+                monthInput.disabled = true;
+                monthInput.required = false;
+                yearInput.disabled = false;
+                yearInput.required = true;
+            }
+        }
+
+        function getSelection() {
+            const type = monthRadio.checked ? "month" : "year";
+            const value = type === "month" ? monthInput.value.trim() : yearInput.value.trim();
+            return { type, value };
+        }
+
+        monthRadio.addEventListener("change", syncSelectionUI);
+        yearRadio.addEventListener("change", syncSelectionUI);
+        syncSelectionUI();
+
+        openBtn.addEventListener("click", function () {
+            const selection = getSelection();
+            if (!selection.value) {
+                alert("Please select a valid " + selection.type + " before continuing.");
+                return;
+            }
+
+            confirmDeleteType.value = selection.type;
+            confirmPeriodValue.value = selection.value;
+            if (selection.type === "month") {
+                selectionLabel.textContent = "Selected Month:";
+                preview.textContent = selection.value;
+            } else {
+                selectionLabel.textContent = "Selected Year:";
+                preview.textContent = selection.value;
+            }
+            if (passwordInput) {
+                passwordInput.value = "";
+            }
+
+            confirmModal.show();
+        });
+    });
+</script>
 {% endblock %}
