@@ -8,13 +8,23 @@
     <div class="row g-2 mb-3">
         <div class="col-6">
             <label class="form-label small text-muted">Start Date</label>
-            <input type="date" name="start_date" class="form-control py-3 date-input-placeholder"
-                value="{{ start_date or '' }}" data-placeholder="dd/mm/yyyy" required>
+            <div class="input-group date-input-group">
+                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                    <i class="bi bi-calendar4"></i>
+                </span>
+                <input type="date" name="start_date" class="form-control py-3 date-input-placeholder border-start-0"
+                    value="{{ start_date or '' }}" data-placeholder="dd/mm/yyyy" required>
+            </div>
         </div>
         <div class="col-6">
             <label class="form-label small text-muted">End Date</label>
-            <input type="date" name="end_date" class="form-control py-3 date-input-placeholder"
-                value="{{ end_date or '' }}" data-placeholder="dd/mm/yyyy" required>
+            <div class="input-group date-input-group">
+                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                    <i class="bi bi-calendar4"></i>
+                </span>
+                <input type="date" name="end_date" class="form-control py-3 date-input-placeholder border-start-0"
+                    value="{{ end_date or '' }}" data-placeholder="dd/mm/yyyy" required>
+            </div>
         </div>
     </div>
     <button class="btn btn-primary w-100 py-3 shadow-soft">Generate Report</button>

@@ -7,13 +7,24 @@
 <form method="GET" class="mb-4">
     <div class="mb-3">
         <label class="form-label small text-muted">Select Month</label>
-        <input type="month" name="report_month" class="form-control py-3 date-input-placeholder"
-            value="{{ selected_month or '' }}" data-placeholder="Select Month" required>
+        <div class="input-group date-input-group">
+            <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                <i class="bi bi-calendar4"></i>
+            </span>
+            <input type="month" name="report_month" class="form-control py-3 date-input-placeholder border-start-0"
+                value="{{ selected_month or '' }}" data-placeholder="Select Month" required>
+        </div>
     </div>
     <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
 </form>
 
 {% if report %}
+<div class="d-grid d-md-flex justify-content-md-end mb-3">
+    <a class="btn btn-outline-primary" href="{{ url_for('download_monthly_report_pdf', report_month=selected_month) }}">
+        Download PDF
+    </a>
+</div>
+
 <div class="row">
     <!-- Summary Cards -->
     <div class="col-6 col-md-3 mb-3">
@@ -78,7 +89,7 @@
     </div>
 </div>
 
-{% elif selected_month %}
+{% elif searched_month %}
 <p class="text-muted">No data found for the selected month.</p>
 {% endif %}
 {% endblock %}

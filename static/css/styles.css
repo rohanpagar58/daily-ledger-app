@@ -118,6 +118,29 @@ h6 {
     border-radius: var(--input-radius);
     background-color: #F9FAFB;
     border: 1px solid var(--border-color);
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+/* Keep date/month icon + field focused as one control */
+.date-input-group {
+    border-radius: var(--input-radius);
+}
+
+.date-input-group:focus-within {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.date-input-group:focus-within .input-group-text,
+.date-input-group:focus-within .form-control {
+    border-color: var(--primary-color);
+}
+
+.date-input-group .form-control {
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.date-input-group .form-control:focus {
+    box-shadow: none;
 }
 
 /* Navbar */

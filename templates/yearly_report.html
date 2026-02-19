@@ -7,10 +7,19 @@
 <form method="GET" class="mb-4">
     <div class="mb-3">
         <label class="form-label small text-muted">Select Year</label>
-        <input type="number" name="report_year" class="form-control py-3" value="{{ selected_year or '' }}" min="2000" max="2100" step="1" placeholder="YYYY" required>
+        <input type="number" name="report_year" class="form-control py-3" value="{{ selected_year or '' }}" min="2000"
+            max="2100" step="1" placeholder="YYYY" required>
     </div>
     <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
 </form>
+
+<div class="d-flex justify-content-end mb-3">
+    {% if report and selected_year %}
+    <a href="{{ url_for('download_yearly_report_pdf', report_year=selected_year) }}" class="btn btn-danger">
+        <i class="fas fa-file-pdf me-2"></i>Download PDF
+    </a>
+    {% endif %}
+</div>
 
 {% if report %}
 <div class="row">
@@ -77,7 +86,7 @@
     </div>
 </div>
 
-{% elif selected_year %}
+{% elif searched_year %}
 <p class="text-muted">No data found for the selected year.</p>
 {% endif %}
 {% endblock %}

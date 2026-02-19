@@ -51,7 +51,12 @@
 
             <div class="mb-3" id="monthInputWrap">
                 <label class="form-label small text-muted">Select Month</label>
-                <input type="month" id="deleteMonth" class="form-control py-3 date-input-placeholder" data-placeholder="Select Month" required>
+                <div class="input-group date-input-group">
+                    <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                        <i class="bi bi-calendar4"></i>
+                    </span>
+                    <input type="month" id="deleteMonth" class="form-control py-3 date-input-placeholder border-start-0" data-placeholder="Select Month" required>
+                </div>
             </div>
 
             <div class="mb-3 d-none" id="yearInputWrap">

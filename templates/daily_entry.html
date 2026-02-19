@@ -58,7 +58,13 @@
                     <!-- Date -->
                     <div class="mb-3">
                         <label class="form-label small text-muted">Date</label>
-                        <input type="date" name="entry_date" class="form-control py-3" value="{{ today }}" min="{{ today }}" max="{{ today }}" readonly required>
+                        <div class="input-group date-input-group">
+                            <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                                <i class="bi bi-calendar4"></i>
+                            </span>
+                            <input type="date" name="entry_date" class="form-control py-3 border-start-0" value="{{ today }}"
+                                min="{{ today }}" max="{{ today }}" readonly required>
+                        </div>
                     </div>
 
                     <!-- Credit & Debit Row -->
