@@ -16,18 +16,83 @@
     </div>
 </div>
 
-<div class="mt-4 d-grid gap-2">
-    <a href="/add-entry" class="btn btn-primary btn-lg d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-plus-circle me-2"></i>Add Daily Entry</span>
-        <i class="bi bi-arrow-right-short"></i>
+<div class="home-mobile-actions d-lg-none mt-4">
+    <h5 class="home-mobile-actions-title">Quick Actions</h5>
+
+    <a href="/add-entry" class="home-mobile-primary-action">
+        <span class="home-mobile-primary-icon"><i class="bi bi-plus-lg"></i></span>
+        <span class="home-mobile-primary-text">Add Daily Entry</span>
+        <span class="home-mobile-primary-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="/add-bank" class="btn btn-outline-primary btn-lg d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-bank me-2"></i>Add Bank</span>
-        <i class="bi bi-arrow-right-short"></i>
-    </a>
-    <a href="/reports" class="btn btn-outline-success btn-lg d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-file-earmark-bar-graph-fill me-2"></i>Reports</span>
-        <i class="bi bi-arrow-right-short"></i>
-    </a>
+
+    <div class="home-mobile-secondary-grid">
+        <a href="/add-bank" class="home-mobile-secondary-card">
+            <span class="home-mobile-secondary-icon"><i class="bi bi-bank"></i></span>
+            <span class="home-mobile-secondary-title">Add Bank</span>
+            <span class="home-mobile-secondary-subtitle">Manage accounts</span>
+        </a>
+        <a href="/reports" class="home-mobile-secondary-card">
+            <span class="home-mobile-secondary-icon"><i class="bi bi-file-earmark-text"></i></span>
+            <span class="home-mobile-secondary-title">Reports</span>
+            <span class="home-mobile-secondary-subtitle">Insights & Exports</span>
+        </a>
+    </div>
+</div>
+
+<div class="home-quick-actions-desktop d-none d-lg-block mt-4">
+    <h2 class="home-quick-title">
+        <i class="bi bi-lightning-charge-fill"></i>
+        Quick Actions
+    </h2>
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <a class="home-action-card home-action-card-primary" href="/add-entry">
+                <div class="home-action-bg-icon">
+                    <i class="bi bi-journal-plus"></i>
+                </div>
+                <div>
+                    <div class="home-action-icon">
+                        <i class="bi bi-plus-square-fill"></i>
+                    </div>
+                    <h3>Add Daily Entry</h3>
+                    <p>Log new sales, miscellaneous expenses, or daily shop collections instantly.</p>
+                </div>
+                <span class="home-action-cta">
+                    Get Started
+                    <i class="bi bi-arrow-right"></i>
+                </span>
+            </a>
+        </div>
+        <div class="col-lg-4">
+            <a class="home-action-card" href="/add-bank">
+                <div>
+                    <div class="home-action-icon">
+                        <i class="bi bi-bank"></i>
+                    </div>
+                    <h3>Add Bank</h3>
+                    <p>Connect a new bank account or digital wallet to monitor balances and transfers.</p>
+                </div>
+                <span class="home-action-cta">
+                    Configure
+                    <i class="bi bi-arrow-right"></i>
+                </span>
+            </a>
+        </div>
+        <div class="col-lg-4">
+            <a class="home-action-card" href="/reports">
+                <div>
+                    <div class="home-action-icon">
+                        <i class="bi bi-bar-chart-fill"></i>
+                    </div>
+                    <h3>Reports</h3>
+                    <p>Analyze monthly trends, profit margins, and detailed expense breakdowns.</p>
+                </div>
+                <span class="home-action-cta">
+                    View Analytics
+                    <i class="bi bi-arrow-right"></i>
+                </span>
+            </a>
+        </div>
+    </div>
 </div>
 {% endblock %}

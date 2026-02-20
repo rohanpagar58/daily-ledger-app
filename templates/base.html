@@ -78,10 +78,10 @@
     </style>
 </head>
 
-<body class="bg-light">
+<body class="{% if request.path != '/login' and request.path != '/signup' %}app-shell{% endif %}">
 
     <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
+    <nav class="navbar navbar-expand-lg navbar-light shadow-sm sticky-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="/">
                 <img src="{{ url_for('static', filename='images/Daily_ledger_widename.svg') }}" alt="Daily Ledger"
@@ -100,26 +100,47 @@
             </div>
             <div class="collapse navbar-collapse mt-3 mt-lg-0" id="mainNavbar">
                 <div class="navbar-nav ms-auto">
-                    <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
-                    <a class="nav-link {% if request.path == '/add-bank' %}active{% endif %}" href="/add-bank">Add
-                        Bank</a>
-                    <a class="nav-link {% if request.path == '/add-entry' or request.path.startswith('/edit-entry') %}active{% endif %}"
-                        href="/add-entry">Add Entry</a>
-                    <a class="nav-link {% if request.path == '/reports' %}active{% endif %}" href="/reports">Reports</a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/' %}active{% endif %}" href="/">
+                        <i class="bi bi-house-door" aria-hidden="true"></i>
+                        <span>Home</span>
+                    </a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/add-bank' %}active{% endif %}" href="/add-bank">
+                        <i class="bi bi-bank2" aria-hidden="true"></i>
+                        <span>Add Bank</span>
+                    </a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/add-entry' or request.path.startswith('/edit-entry') %}active{% endif %}"
+                        href="/add-entry">
+                        <i class="bi bi-journal-plus" aria-hidden="true"></i>
+                        <span>Add Entry</span>
+                    </a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/reports' %}active{% endif %}" href="/reports">
+                        <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
+                        <span>Reports</span>
+                    </a>
 
                     {% if session.get('shop_name') %}
                     <form method="POST" action="/logout" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button class="btn btn-link nav-link">Logout</button>
+                        <button class="btn btn-link nav-link nav-link-with-icon">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                            <span>Logout</span>
+                        </button>
                     </form>
                     <li class="nav-item d-none d-lg-block">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#calculatorModal">
-                            <i class="bi bi-calculator"></i> Calculator
+                        <a class="nav-link nav-link-with-icon" href="#" data-bs-toggle="modal" data-bs-target="#calculatorModal">
+                            <i class="bi bi-calculator" aria-hidden="true"></i>
+                            <span>Calculator</span>
                         </a>
                     </li>
                     {% else %}
-                    <a class="nav-link {% if request.path == '/login' %}active{% endif %}" href="/login">Login</a>
-                    <a class="nav-link {% if request.path == '/signup' %}active{% endif %}" href="/signup">Signup</a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/login' %}active{% endif %}" href="/login">
+                        <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+                        <span>Login</span>
+                    </a>
+                    <a class="nav-link nav-link-with-icon {% if request.path == '/signup' %}active{% endif %}" href="/signup">
+                        <i class="bi bi-person-plus" aria-hidden="true"></i>
+                        <span>Signup</span>
+                    </a>
                     {% endif %}
                 </div>
             </div>
@@ -141,7 +162,9 @@
         {% endif %}
         {% endwith %}
 
-        {% block content %}{% endblock %}
+        <div class="page-content-shell">
+            {% block content %}{% endblock %}
+        </div>
     </div>
 
     <!-- Calculator Modal -->

@@ -3,69 +3,220 @@
 {% block title %}Reports - Daily Ledger{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <h4 class="text-center mb-4">Reports</h4>
+<div class="d-lg-none">
+    <div class="reports-mobile-list-wrap mb-4">
+        <h4 class="reports-mobile-title">Available Reports</h4>
 
-        <div class="list-group">
-            <a href="/daily-report" class="list-group-item list-group-item-action">
-                <strong>Day Wise Report</strong>
-                <p class="mb-0 small text-muted">View transactions day by day for a selected range.</p>
+        <div class="reports-mobile-list">
+            <a href="/daily-report" class="reports-mobile-item">
+                <span class="reports-mobile-item-icon"><i class="bi bi-calendar2-day"></i></span>
+                <span class="reports-mobile-item-content">
+                    <span class="reports-mobile-item-title">Day Wise Report</span>
+                    <span class="reports-mobile-item-subtitle">Detailed daily breakdown</span>
+                </span>
+                <span class="reports-mobile-item-cta">Generate</span>
             </a>
-            <a href="/weekly-report" class="list-group-item list-group-item-action">
-                <strong>Weekly Report</strong>
-                <p class="mb-0 small text-muted">Weekly summary of credits/debits per bank.</p>
+
+            <a href="/weekly-report" class="reports-mobile-item">
+                <span class="reports-mobile-item-icon"><i class="bi bi-bar-chart-steps"></i></span>
+                <span class="reports-mobile-item-content">
+                    <span class="reports-mobile-item-title">Weekly Report</span>
+                    <span class="reports-mobile-item-subtitle">7-day summary and trends</span>
+                </span>
+                <span class="reports-mobile-item-cta">Generate</span>
             </a>
-            <a href="/monthly-report" class="list-group-item list-group-item-action">
-                <strong>Monthly Report</strong>
-                <p class="mb-0 small text-muted">Monthly summary of credits/debits per bank.</p>
+
+            <a href="/monthly-report" class="reports-mobile-item">
+                <span class="reports-mobile-item-icon"><i class="bi bi-calendar-month"></i></span>
+                <span class="reports-mobile-item-content">
+                    <span class="reports-mobile-item-title">Monthly Report</span>
+                    <span class="reports-mobile-item-subtitle">Full monthly reconciliation</span>
+                </span>
+                <span class="reports-mobile-item-cta">Generate</span>
             </a>
-            <a href="/yearly-report" class="list-group-item list-group-item-action">
-                <strong>Yearly Report</strong>
-                <p class="mb-0 small text-muted">Yearly overview and top banks.</p>
+
+            <a href="/yearly-report" class="reports-mobile-item">
+                <span class="reports-mobile-item-icon"><i class="bi bi-calendar-range"></i></span>
+                <span class="reports-mobile-item-content">
+                    <span class="reports-mobile-item-title">Yearly Report</span>
+                    <span class="reports-mobile-item-subtitle">Annual financial performance</span>
+                </span>
+                <span class="reports-mobile-item-cta">Generate</span>
             </a>
-            <a href="/custom-report" class="list-group-item list-group-item-action">
-                <strong>Custom Report</strong>
-                <p class="mb-0 small text-muted">Summary for specific date range.</p>
+
+            <a href="/custom-report" class="reports-mobile-item">
+                <span class="reports-mobile-item-icon"><i class="bi bi-calendar3"></i></span>
+                <span class="reports-mobile-item-content">
+                    <span class="reports-mobile-item-title">Custom Report</span>
+                    <span class="reports-mobile-item-subtitle">Select specific date range</span>
+                </span>
+                <span class="reports-mobile-item-cta">Generate</span>
             </a>
+        </div>
+    </div>
+
+    <div class="reports-mobile-delete">
+        <div class="reports-danger-card">
+            <div class="reports-danger-header">
+                <i class="bi bi-exclamation-diamond-fill"></i>
+                Danger Zone
+            </div>
+            <div class="reports-danger-body">
+                <h6>Delete permanent Data</h6>
+                <p>Permanently remove records from your ledger. This action cannot be undone.</p>
+
+                <form id="deleteDataSelectionFormMobile" onsubmit="return false;">
+                    <label class="reports-field-label">Deletion Basis</label>
+                    <div class="reports-delete-segment mb-3">
+                        <input type="radio" class="btn-check" name="delete_type_select_mobile" id="deleteTypeMonthMobile" value="month" checked>
+                        <label class="btn" for="deleteTypeMonthMobile">Month</label>
+
+                        <input type="radio" class="btn-check" name="delete_type_select_mobile" id="deleteTypeYearMobile" value="year">
+                        <label class="btn" for="deleteTypeYearMobile">Year</label>
+                    </div>
+
+                    <div class="mb-3" id="monthInputWrapMobile">
+                        <label class="reports-field-label">Select Month</label>
+                        <div class="input-group date-input-group">
+                            <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                                <i class="bi bi-calendar4"></i>
+                            </span>
+                            <input type="month" id="deleteMonthMobile" class="form-control py-3 date-input-placeholder border-start-0"
+                                data-placeholder="Select Month" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 d-none" id="yearInputWrapMobile">
+                        <label class="reports-field-label">Select Year</label>
+                        <input type="number" id="deleteYearMobile" class="form-control py-3" min="2000" max="2100" step="1"
+                            placeholder="YYYY" disabled>
+                    </div>
+
+                    <button type="button" id="openDeleteConfirmBtnMobile" class="btn btn-danger w-100 py-3 reports-delete-btn">
+                        <i class="bi bi-trash-fill me-2"></i>Delete Selected Data
+                    </button>
+                    <div class="reports-delete-note">A confirmation dialog will appear before deletion.</div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h5 class="mb-3">Delete Data</h5>
-        <p class="small text-muted mb-3">Delete entries by month or year for your account.</p>
+<div class="d-none d-lg-block reports-desktop">
+    <div class="reports-desktop-header mb-4">
+        <h2>Reports &amp; Data Management</h2>
+        <p>Analyze your financial history and manage your ledger records.</p>
+    </div>
 
-        <form id="deleteDataSelectionForm" onsubmit="return false;">
-            <div class="mb-3">
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="delete_type_select" id="deleteTypeMonth" value="month" checked>
-                    <label class="form-check-label" for="deleteTypeMonth">Month</label>
+    <div class="row g-4 align-items-start">
+        <div class="col-lg-8">
+            <h5 class="reports-desktop-section-title">
+                <i class="bi bi-bar-chart-fill"></i>
+                Available Reports
+            </h5>
+
+            <div class="row g-3">
+                <div class="col-6">
+                    <a href="/daily-report" class="report-hub-card">
+                        <span class="report-hub-icon"><i class="bi bi-calendar2-week-fill"></i></span>
+                        <div class="report-hub-content">
+                            <h6>Day Wise Report</h6>
+                            <p>Detailed transaction breakdown for any specific date range.</p>
+                            <span class="report-hub-cta">Generate Report <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </a>
                 </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="delete_type_select" id="deleteTypeYear" value="year">
-                    <label class="form-check-label" for="deleteTypeYear">Year</label>
+                <div class="col-6">
+                    <a href="/weekly-report" class="report-hub-card">
+                        <span class="report-hub-icon"><i class="bi bi-bar-chart-steps"></i></span>
+                        <div class="report-hub-content">
+                            <h6>Weekly Report</h6>
+                            <p>Bank-wise credit and debit summaries organized by week.</p>
+                            <span class="report-hub-cta">Generate Report <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="/monthly-report" class="report-hub-card">
+                        <span class="report-hub-icon"><i class="bi bi-calendar-month-fill"></i></span>
+                        <div class="report-hub-content">
+                            <h6>Monthly Report</h6>
+                            <p>Comprehensive monthly performance for all active bank accounts.</p>
+                            <span class="report-hub-cta">Generate Report <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="/yearly-report" class="report-hub-card">
+                        <span class="report-hub-icon"><i class="bi bi-calendar-range-fill"></i></span>
+                        <div class="report-hub-content">
+                            <h6>Yearly Report</h6>
+                            <p>Yearly financial overview with top-performing bank statistics.</p>
+                            <span class="report-hub-cta">Generate Report <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-12">
+                    <a href="/custom-report" class="report-hub-card report-hub-card-wide">
+                        <span class="report-hub-icon"><i class="bi bi-sliders2"></i></span>
+                        <div class="report-hub-content">
+                            <h6>Custom Report</h6>
+                            <p>Define your own parameters and filters for a tailored financial view.</p>
+                            <span class="report-hub-cta">Generate Report <i class="bi bi-arrow-right"></i></span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="reports-danger-card">
+                <div class="reports-danger-header">
+                    <i class="bi bi-exclamation-diamond-fill"></i>
+                    Danger Zone
+                </div>
+                <div class="reports-danger-body">
+                    <h6>Delete permanent Data</h6>
+                    <p>Permanently remove records from your ledger. This action cannot be undone.</p>
+
+                    <form id="deleteDataSelectionFormDesktop" onsubmit="return false;">
+                        <label class="reports-field-label">Deletion Basis</label>
+                        <div class="reports-delete-segment mb-3">
+                            <input type="radio" class="btn-check" name="delete_type_select_desktop" id="deleteTypeMonthDesktop" value="month" checked>
+                            <label class="btn" for="deleteTypeMonthDesktop">Month</label>
+
+                            <input type="radio" class="btn-check" name="delete_type_select_desktop" id="deleteTypeYearDesktop" value="year">
+                            <label class="btn" for="deleteTypeYearDesktop">Year</label>
+                        </div>
+
+                        <div class="mb-3" id="monthInputWrapDesktop">
+                            <label class="reports-field-label">Select Month</label>
+                            <div class="input-group date-input-group">
+                                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                                    <i class="bi bi-calendar4"></i>
+                                </span>
+                                <input type="month" id="deleteMonthDesktop" class="form-control py-3 date-input-placeholder border-start-0" data-placeholder="Select Month" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 d-none" id="yearInputWrapDesktop">
+                            <label class="reports-field-label">Select Year</label>
+                            <input type="number" id="deleteYearDesktop" class="form-control py-3" min="2000" max="2100" step="1" placeholder="YYYY" disabled>
+                        </div>
+
+                        <button type="button" id="openDeleteConfirmBtnDesktop" class="btn btn-danger w-100 py-3 reports-delete-btn">
+                            <i class="bi bi-trash-fill me-2"></i>Delete Selected Data
+                        </button>
+                        <div class="reports-delete-note">A confirmation dialog will appear before deletion.</div>
+                    </form>
                 </div>
             </div>
 
-            <div class="mb-3" id="monthInputWrap">
-                <label class="form-label small text-muted">Select Month</label>
-                <div class="input-group date-input-group">
-                    <span class="input-group-text bg-white border-end-0" aria-hidden="true">
-                        <i class="bi bi-calendar4"></i>
-                    </span>
-                    <input type="month" id="deleteMonth" class="form-control py-3 date-input-placeholder border-start-0" data-placeholder="Select Month" required>
-                </div>
+            <div class="reports-backup-card mt-3">
+                <h6>Need a Backup?</h6>
+                <p>Before deleting data, we recommend downloading a backup of your records from the Monthly or Yearly Report section in PDF format.</p>
             </div>
-
-            <div class="mb-3 d-none" id="yearInputWrap">
-                <label class="form-label small text-muted">Select Year</label>
-                <input type="number" id="deleteYear" class="form-control py-3" min="2000" max="2100" step="1" placeholder="YYYY" disabled>
-            </div>
-
-            <button type="button" id="openDeleteConfirmBtn" class="btn btn-danger w-100 py-3">Delete Data</button>
-        </form>
+        </div>
     </div>
 </div>
 
@@ -103,13 +254,6 @@
 {% block extra_js %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const monthRadio = document.getElementById("deleteTypeMonth");
-        const yearRadio = document.getElementById("deleteTypeYear");
-        const monthWrap = document.getElementById("monthInputWrap");
-        const yearWrap = document.getElementById("yearInputWrap");
-        const monthInput = document.getElementById("deleteMonth");
-        const yearInput = document.getElementById("deleteYear");
-        const openBtn = document.getElementById("openDeleteConfirmBtn");
         const preview = document.getElementById("deletePeriodPreview");
         const selectionLabel = document.getElementById("deleteSelectionLabel");
         const confirmDeleteType = document.getElementById("confirmDeleteType");
@@ -118,55 +262,89 @@
         const passwordInput = confirmModalElement.querySelector('input[name="password"]');
         const confirmModal = new bootstrap.Modal(confirmModalElement);
 
-        function syncSelectionUI() {
-            if (monthRadio.checked) {
-                monthWrap.classList.remove("d-none");
-                yearWrap.classList.add("d-none");
-                monthInput.disabled = false;
-                monthInput.required = true;
-                yearInput.disabled = true;
-                yearInput.required = false;
-            } else {
-                monthWrap.classList.add("d-none");
-                yearWrap.classList.remove("d-none");
-                monthInput.disabled = true;
-                monthInput.required = false;
-                yearInput.disabled = false;
-                yearInput.required = true;
-            }
-        }
+        function bindDeleteSelectionControls(config) {
+            const monthRadio = document.getElementById(config.monthRadioId);
+            const yearRadio = document.getElementById(config.yearRadioId);
+            const monthWrap = document.getElementById(config.monthWrapId);
+            const yearWrap = document.getElementById(config.yearWrapId);
+            const monthInput = document.getElementById(config.monthInputId);
+            const yearInput = document.getElementById(config.yearInputId);
+            const openBtn = document.getElementById(config.openBtnId);
 
-        function getSelection() {
-            const type = monthRadio.checked ? "month" : "year";
-            const value = type === "month" ? monthInput.value.trim() : yearInput.value.trim();
-            return { type, value };
-        }
-
-        monthRadio.addEventListener("change", syncSelectionUI);
-        yearRadio.addEventListener("change", syncSelectionUI);
-        syncSelectionUI();
-
-        openBtn.addEventListener("click", function () {
-            const selection = getSelection();
-            if (!selection.value) {
-                alert("Please select a valid " + selection.type + " before continuing.");
+            if (!monthRadio || !yearRadio || !monthWrap || !yearWrap || !monthInput || !yearInput || !openBtn) {
                 return;
             }
 
-            confirmDeleteType.value = selection.type;
-            confirmPeriodValue.value = selection.value;
-            if (selection.type === "month") {
-                selectionLabel.textContent = "Selected Month:";
-                preview.textContent = selection.value;
-            } else {
-                selectionLabel.textContent = "Selected Year:";
-                preview.textContent = selection.value;
-            }
-            if (passwordInput) {
-                passwordInput.value = "";
+            function syncSelectionUI() {
+                if (monthRadio.checked) {
+                    monthWrap.classList.remove("d-none");
+                    yearWrap.classList.add("d-none");
+                    monthInput.disabled = false;
+                    monthInput.required = true;
+                    yearInput.disabled = true;
+                    yearInput.required = false;
+                } else {
+                    monthWrap.classList.add("d-none");
+                    yearWrap.classList.remove("d-none");
+                    monthInput.disabled = true;
+                    monthInput.required = false;
+                    yearInput.disabled = false;
+                    yearInput.required = true;
+                }
             }
 
-            confirmModal.show();
+            function getSelection() {
+                const type = monthRadio.checked ? "month" : "year";
+                const value = type === "month" ? monthInput.value.trim() : yearInput.value.trim();
+                return { type, value };
+            }
+
+            monthRadio.addEventListener("change", syncSelectionUI);
+            yearRadio.addEventListener("change", syncSelectionUI);
+            syncSelectionUI();
+
+            openBtn.addEventListener("click", function () {
+                const selection = getSelection();
+                if (!selection.value) {
+                    alert("Please select a valid " + selection.type + " before continuing.");
+                    return;
+                }
+
+                confirmDeleteType.value = selection.type;
+                confirmPeriodValue.value = selection.value;
+                if (selection.type === "month") {
+                    selectionLabel.textContent = "Selected Month:";
+                    preview.textContent = selection.value;
+                } else {
+                    selectionLabel.textContent = "Selected Year:";
+                    preview.textContent = selection.value;
+                }
+                if (passwordInput) {
+                    passwordInput.value = "";
+                }
+
+                confirmModal.show();
+            });
+        }
+
+        bindDeleteSelectionControls({
+            monthRadioId: "deleteTypeMonthMobile",
+            yearRadioId: "deleteTypeYearMobile",
+            monthWrapId: "monthInputWrapMobile",
+            yearWrapId: "yearInputWrapMobile",
+            monthInputId: "deleteMonthMobile",
+            yearInputId: "deleteYearMobile",
+            openBtnId: "openDeleteConfirmBtnMobile",
+        });
+
+        bindDeleteSelectionControls({
+            monthRadioId: "deleteTypeMonthDesktop",
+            yearRadioId: "deleteTypeYearDesktop",
+            monthWrapId: "monthInputWrapDesktop",
+            yearWrapId: "yearInputWrapDesktop",
+            monthInputId: "deleteMonthDesktop",
+            yearInputId: "deleteYearDesktop",
+            openBtnId: "openDeleteConfirmBtnDesktop",
         });
     });
 </script>

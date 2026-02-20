@@ -80,7 +80,7 @@ def find_shop_by_identifier(identifier):
         return None
 
 
-def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None):
+def render_daily_entry_page(banks, today, selected_bank=None, error=None, entries=None, edit_entry=None):
     if entries is None:
         entries = []
     return render_template(
@@ -89,7 +89,8 @@ def render_daily_entry_page(banks, today, selected_bank=None, error=None, entrie
         grouped_entries=group_entries_by_date(entries),
         error=error,
         today=today,
-        selected_bank=selected_bank
+        selected_bank=selected_bank,
+        edit_entry=edit_entry,
     )
 
 
@@ -288,6 +289,7 @@ def add_entry():
     today = date.today().isoformat()
     banks = get_shop_banks()
     selected_bank = request.args.get("selected_bank")
+    edit_id = (request.args.get("edit_id") or "").strip()
 
     def load_recent_entries():
         from_date = (date.today() - timedelta(days=6)).isoformat()
@@ -306,6 +308,110 @@ def add_entry():
 
     if request.method == "POST":
         verify_csrf()
+        edit_entry_id = (request.form.get("edit_entry_id") or "").strip()
+
+        if edit_entry_id:
+            entry_oid = to_object_id(edit_entry_id)
+            if not entry_oid:
+                flash("Entry not found", "danger")
+                return redirect(url_for("add_entry"))
+
+            try:
+                entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+            except PyMongoError as e:
+                app.logger.error(f"Database error while loading entry for inline edit: {e}")
+                flash("Database error occurred. Please try again.", "danger")
+                return redirect(url_for("add_entry"))
+
+            if not entry:
+                flash("Entry not found", "danger")
+                return redirect(url_for("add_entry"))
+
+            if entry["date"] != today:
+                flash("Editing past entries is not allowed", "danger")
+                return redirect(url_for("add_entry"))
+
+            credited = parse_non_negative_float(request.form.get("credited") or 0)
+            debited = parse_non_negative_float(request.form.get("debited") or 0)
+
+            if credited is None or debited is None:
+                flash("Amounts must be non-negative numbers", "danger")
+                return redirect(url_for("add_entry", edit_id=edit_entry_id))
+            if credited > 0 and debited > 0:
+                flash("Enter either credited or debited amount, not both", "danger")
+                return redirect(url_for("add_entry", edit_id=edit_entry_id))
+            if credited == 0 and debited == 0:
+                flash("Please enter credited or debited amount", "danger")
+                return redirect(url_for("add_entry", edit_id=edit_entry_id))
+
+            try:
+                bank_oid = to_object_id(entry["bank_id"])
+                if not bank_oid:
+                    flash("Invalid bank selection", "danger")
+                    return redirect(url_for("add_entry", edit_id=edit_entry_id))
+
+                bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+                if not bank:
+                    flash("Invalid bank selection", "danger")
+                    return redirect(url_for("add_entry", edit_id=edit_entry_id))
+
+                previous_entry = entries_col.find_one(
+                    {
+                        "bank_id": entry["bank_id"],
+                        "date": {"$lte": today},
+                        "shop_identifier": current_shop_identifier(),
+                        "_id": {"$ne": entry_oid},
+                    },
+                    sort=[("entry_datetime", -1)]
+                )
+            except PyMongoError as e:
+                app.logger.error(f"Database error while validating inline edit balance: {e}")
+                flash("Database error occurred. Please try again.", "danger")
+                return redirect(url_for("add_entry"))
+
+            available_balance = (
+                previous_entry["remaining_balance"]
+                if previous_entry else bank["opening_balance"]
+            )
+            try:
+                available_balance = float(available_balance)
+            except (TypeError, ValueError):
+                available_balance = 0.0
+            available_balance = max(0.0, available_balance)
+
+            if debited > available_balance:
+                flash(
+                    f"Insufficient balance in {entry['bank_name']}. Available: {available_balance:.2f}",
+                    "danger"
+                )
+                return redirect(url_for("add_entry", edit_id=edit_entry_id))
+
+            try:
+                updated_at = datetime.now()
+                entries_col.update_one(
+                    {"_id": entry_oid},
+                    {
+                        "$set": {
+                            "credited": credited,
+                            "debited": debited,
+                            "time": updated_at.strftime("%H:%M:%S"),
+                            "entry_datetime": updated_at,
+                        }
+                    }
+                )
+                recalculate_bank_balances_from_date(entry["bank_id"], today)
+            except PyMongoError as e:
+                app.logger.error(f"Database error while updating entry inline: {e}")
+                flash("Database error occurred. Please try again.", "danger")
+                return redirect(url_for("add_entry"))
+
+            if credited > 0:
+                flash(f"Updated: {credited} credited to {entry['bank_name']}", "success")
+            else:
+                flash(f"Updated: {debited} debited from {entry['bank_name']}", "debit")
+
+            return redirect(url_for("add_entry"))
+
         bank_id = request.form.get("bank_id")
         entry_date = today
         if bank_id:
@@ -430,6 +536,28 @@ def add_entry():
                     
                 return redirect(url_for("add_entry", selected_bank=bank_id))
 
+    edit_entry = None
+    if edit_id:
+        entry_oid = to_object_id(edit_id)
+        if not entry_oid:
+            flash("Entry not found", "danger")
+            return redirect(url_for("add_entry"))
+
+        try:
+            edit_entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
+        except PyMongoError as e:
+            app.logger.error(f"Database error while loading entry for inline edit mode: {e}")
+            flash("Database error occurred. Please try again.", "danger")
+            return redirect(url_for("add_entry"))
+
+        if not edit_entry:
+            flash("Entry not found", "danger")
+            return redirect(url_for("add_entry"))
+
+        if edit_entry["date"] != today:
+            flash("Editing past entries is not allowed", "danger")
+            return redirect(url_for("add_entry"))
+
     entries = load_recent_entries()
 
     return render_daily_entry_page(
@@ -437,7 +565,8 @@ def add_entry():
         entries=entries,
         error=error,
         today=today,
-        selected_bank=selected_bank
+        selected_bank=selected_bank,
+        edit_entry=edit_entry,
     )
 
 
@@ -485,99 +614,9 @@ def bank_balance(bank_id, entry_date):
 # -----------------------------
 # EDIT ENTRY (SAME-DAY ONLY)
 # -----------------------------
-@app.route("/edit-entry/<entry_id>", methods=["GET", "POST"])
+@app.route("/edit-entry/<entry_id>")
 def edit_entry(entry_id):
-    entry_oid = to_object_id(entry_id)
-    if not entry_oid:
-        return "Entry not found", 404
-    try:
-        entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
-    except PyMongoError as e:
-        app.logger.error(f"Database error while loading entry for edit: {e}")
-        return "Database error occurred. Please try again.", 500
-    if not entry:
-        return "Entry not found", 404
-    today = date.today().isoformat()
-
-    if entry["date"] != today:
-        return "Editing past entries is not allowed", 403
-
-    if request.method == "POST":
-        verify_csrf()
-        credited = parse_non_negative_float(request.form.get("credited") or 0)
-        debited = parse_non_negative_float(request.form.get("debited") or 0)
-
-        if credited is None or debited is None:
-            return "Amounts must be non-negative numbers", 400
-        if credited > 0 and debited > 0:
-            return "Enter either credited or debited amount, not both", 400
-        try:
-            bank_oid = to_object_id(entry["bank_id"])
-            if not bank_oid:
-                return "Invalid bank selection", 400
-
-            bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
-            if not bank:
-                return "Invalid bank selection", 400
-
-            previous_entry = entries_col.find_one(
-                {
-                    "bank_id": entry["bank_id"],
-                    "date": {"$lte": today},
-                    "shop_identifier": current_shop_identifier(),
-                    "_id": {"$ne": entry_oid},
-                },
-                sort=[("entry_datetime", -1)]
-            )
-        except PyMongoError as e:
-            app.logger.error(f"Database error while validating edit balance: {e}")
-            flash("Database error occurred. Please try again.", "danger")
-            return redirect(url_for("add_entry"))
-
-        available_balance = (
-            previous_entry["remaining_balance"]
-            if previous_entry else bank["opening_balance"]
-        )
-        try:
-            available_balance = float(available_balance)
-        except (TypeError, ValueError):
-            available_balance = 0.0
-        available_balance = max(0.0, available_balance)
-
-        if debited > available_balance:
-            flash(
-                f"Insufficient balance in {entry['bank_name']}. Available: {available_balance:.2f}",
-                "danger"
-            )
-            return redirect(url_for("edit_entry", entry_id=entry_id))
-
-        try:
-            updated_at = datetime.now()
-            entries_col.update_one(
-                {"_id": entry_oid},
-                {
-                    "$set": {
-                        "credited": credited,
-                        "debited": debited,
-                        "time": updated_at.strftime("%H:%M:%S"),
-                        "entry_datetime": updated_at,
-                    }
-                }
-            )
-            recalculate_bank_balances_from_date(entry["bank_id"], today)
-        except PyMongoError as e:
-            app.logger.error(f"Database error while updating entry: {e}")
-            flash("Database error occurred. Please try again.", "danger")
-            return redirect(url_for("add_entry"))
-        
-        if credited > 0:
-            flash(f"Updated: {credited} credited to {entry['bank_name']}", "success")
-        else:
-            flash(f"Updated: {debited} debited from {entry['bank_name']}", "debit")
-            
-        return redirect(url_for("add_entry"))
-
-    return render_template("edit_entry.html", entry=entry)
+    return redirect(url_for("add_entry", edit_id=entry_id))
 
 
 # -----------------------------
@@ -631,4 +670,5 @@ register_report_routes(
 # RUN APP 
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="192.168.0.219", port=5000, debug=True)
+    app.run(host="192.168.0.107", port=5000, debug=True)
+    #app.run(host="10.238.128.77", port=5000, debug=True)

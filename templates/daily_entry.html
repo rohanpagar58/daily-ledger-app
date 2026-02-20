@@ -3,12 +3,15 @@
 {% block title %}Daily Entry - Daily Ledger{% endblock %}
 
 {% block content %}
+{% set edit_mode = edit_entry is defined and edit_entry %}
+{% set credited_value = edit_entry.credited if edit_mode else '' %}
+{% set debited_value = edit_entry.debited if edit_mode else '' %}
 <div class="row">
     <div class="col-md-12">
         <!-- Daily Entry Form -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <h4>Daily Ledger Entry</h4>
+                <h4>{% if edit_mode %}Edit Daily Entry{% else %}Daily Ledger Entry{% endif %}</h4>
 
                 {% if error %}
                 <div class="alert alert-warning" id="errorAlert">
@@ -16,72 +19,124 @@
                 </div>
                 {% endif %}
 
-                <form method="POST">
+                <form method="POST" class="daily-entry-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <!-- Select Bank -->
-                    <div class="mb-3">
-                        <label class="form-label small text-muted">Select Bank</label>
-                        <div class="dropdown w-100">
-                            {% set ns = namespace(bank_name='-- Select Bank --') %}
-                            {% for bank in banks %}
-                            {% if selected_bank and bank._id|string == selected_bank %}
-                            {% set ns.bank_name = bank.name %}
-                            {% endif %}
-                            {% endfor %}
-                            <button
-                                class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center py-3 custom-select-btn"
-                                type="button" id="bankDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                                <span>{{ ns.bank_name }}</span>
-                                <span class="dropdown-arrow">▼</span>
-                            </button>
-                            <input type="hidden" name="bank_id" id="bankSelect" value="{{ selected_bank or '' }}"
-                                required>
-                            <ul class="dropdown-menu w-100 shadow-sm custom-dropdown-menu"
-                                aria-labelledby="bankDropdownBtn">
+                    {% if edit_mode %}
+                    <input type="hidden" name="edit_entry_id" value="{{ edit_entry._id }}">
+                    {% endif %}
+
+                    {% if edit_mode %}
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Bank</label>
+                            <input type="text" class="form-control py-3 bg-light" value="{{ edit_entry.bank_name }}" readonly>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Available Before Entry</label>
+                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="{{ edit_entry.opening_balance }}" readonly>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Date</label>
+                            <div class="input-group date-input-group">
+                                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                                    <i class="bi bi-calendar4"></i>
+                                </span>
+                                <input type="date" name="entry_date" class="form-control py-3 border-start-0" value="{{ edit_entry.date }}"
+                                    min="{{ today }}" max="{{ today }}" readonly required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 g-lg-3 mb-3 entry-amount-row">
+                        <div class="col-6 col-lg-4 entry-amount-col">
+                            <label class="form-label small text-muted">Credited</label>
+                            <input type="number" name="credited" class="form-control py-3" placeholder="0" min="0" value="{{ credited_value }}"
+                                step="0.01">
+                        </div>
+                        <div class="col-6 col-lg-4 entry-amount-col">
+                            <label class="form-label small text-muted">Debited</label>
+                            <input type="number" name="debited" class="form-control py-3" placeholder="0" min="0" value="{{ debited_value }}"
+                                step="0.01">
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Select Bank</label>
+                            <div class="dropdown w-100">
+                                {% set ns = namespace(bank_name='-- Select Bank --') %}
                                 {% for bank in banks %}
-                                <li>
-                                    <a class="dropdown-item py-2" href="#"
-                                        onclick="selectBank('{{ bank._id }}', '{{ bank.name }}'); return false;">
-                                        {{ bank.name }}
-                                    </a>
-                                </li>
+                                {% if selected_bank and bank._id|string == selected_bank %}
+                                {% set ns.bank_name = bank.name %}
+                                {% endif %}
                                 {% endfor %}
-                            </ul>
+                                <button
+                                    class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center py-3 custom-select-btn"
+                                    type="button" id="bankDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span>{{ ns.bank_name }}</span>
+                                    <span class="dropdown-arrow">&#9662;</span>
+                                </button>
+                                <input type="hidden" name="bank_id" id="bankSelect" value="{{ selected_bank or '' }}"
+                                    required>
+                                <ul class="dropdown-menu w-100 shadow-sm custom-dropdown-menu"
+                                    aria-labelledby="bankDropdownBtn">
+                                    {% for bank in banks %}
+                                    <li>
+                                        <a class="dropdown-item py-2" href="#"
+                                            onclick="selectBank('{{ bank._id }}', '{{ bank.name }}'); return false;">
+                                            {{ bank.name }}
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Available Balance</label>
+                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="0" readonly>
+                        </div>
+
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label small text-muted">Date</label>
+                            <div class="input-group date-input-group">
+                                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                                    <i class="bi bi-calendar4"></i>
+                                </span>
+                                <input type="date" name="entry_date" class="form-control py-3 border-start-0" value="{{ today }}"
+                                    min="{{ today }}" max="{{ today }}" readonly required>
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small text-muted">Available Balance</label>
-                        <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="0" readonly>
-                    </div>
 
-
-                    <!-- Date -->
-                    <div class="mb-3">
-                        <label class="form-label small text-muted">Date</label>
-                        <div class="input-group date-input-group">
-                            <span class="input-group-text bg-white border-end-0" aria-hidden="true">
-                                <i class="bi bi-calendar4"></i>
-                            </span>
-                            <input type="date" name="entry_date" class="form-control py-3 border-start-0" value="{{ today }}"
-                                min="{{ today }}" max="{{ today }}" readonly required>
-                        </div>
-                    </div>
-
-                    <!-- Credit & Debit Row -->
-                    <div class="row mb-3">
-                        <div class="col-6">
+                    <div class="row g-2 g-lg-3 mb-3 entry-amount-row">
+                        <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Credited</label>
                             <input type="number" name="credited" class="form-control py-3" placeholder="0" min="0"
                                 step="0.01">
                         </div>
-                        <div class="col-6">
+                        <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Debited</label>
                             <input type="number" name="debited" class="form-control py-3" placeholder="0" min="0"
                                 step="0.01">
                         </div>
                     </div>
+                    {% endif %}
 
-                    <button class="btn btn-success btn-lg w-100 py-3 shadow-soft">Save Entry</button>
+                    {% if edit_mode %}
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{{ url_for('add_entry') }}" class="btn edit-entry-cancel">
+                            <i class="bi bi-x-circle me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn edit-entry-update">
+                            <i class="bi bi-check2-circle me-2"></i>Update Entry
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="save-entry-actions">
+                        <button class="btn btn-success btn-lg w-100 py-3 shadow-soft save-entry-btn-desktop">Save Entry</button>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -127,7 +182,7 @@
                                 <td>
                                     {% if e.date == today %}
                                     <div class="d-flex gap-1 justify-content-center">
-                                        <a href="/edit-entry/{{ e._id }}" class="btn btn-sm btn-action-icon px-2 py-1"
+                                        <a href="{{ url_for('add_entry', edit_id=e._id) }}" class="btn btn-sm btn-action-icon px-2 py-1"
                                             title="Edit">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                                                 fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
@@ -179,21 +234,32 @@
 </script>
 <script>
     function selectBank(bankId, bankName) {
+        const bankSelect = document.getElementById("bankSelect");
+        if (!bankSelect) return;
+
         // Update hidden input
-        document.getElementById("bankSelect").value = bankId;
+        bankSelect.value = bankId;
 
         // Update button text
         const btn = document.getElementById("bankDropdownBtn");
-        btn.querySelector("span:first-child").textContent = bankName;
+        if (btn) {
+            btn.querySelector("span:first-child").textContent = bankName;
+        }
 
         // Fetch balance
         fetchBalance();
     }
 
     function fetchBalance() {
-        const bankId = document.getElementById("bankSelect").value;
-        const entryDate = document.querySelector("input[name='entry_date']").value;
+        const bankSelect = document.getElementById("bankSelect");
+        const dateInput = document.querySelector("input[name='entry_date']");
         const balanceField = document.getElementById("availableBalance");
+        if (!balanceField || !bankSelect || !dateInput) {
+            return;
+        }
+
+        const bankId = bankSelect.value;
+        const entryDate = dateInput.value;
 
         if (!bankId || !entryDate) {
             balanceField.value = "0";
@@ -212,7 +278,8 @@
 
     // Auto-fetch balance if bank is pre-selected (e.g. after redirect)
     document.addEventListener("DOMContentLoaded", function () {
-        if (document.getElementById("bankSelect").value) {
+        const bankSelect = document.getElementById("bankSelect");
+        if (bankSelect && bankSelect.value) {
             fetchBalance();
         }
     });

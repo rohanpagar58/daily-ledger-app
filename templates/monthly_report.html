@@ -3,91 +3,215 @@
 {% block title %}Monthly Report - Daily Ledger{% endblock %}
 
 {% block content %}
-<h4>Monthly Report</h4>
-<form method="GET" class="mb-4">
-    <div class="mb-3">
-        <label class="form-label small text-muted">Select Month</label>
-        <div class="input-group date-input-group">
-            <span class="input-group-text bg-white border-end-0" aria-hidden="true">
-                <i class="bi bi-calendar4"></i>
-            </span>
-            <input type="month" name="report_month" class="form-control py-3 date-input-placeholder border-start-0"
-                value="{{ selected_month or '' }}" data-placeholder="Select Month" required>
+<div class="d-lg-none">
+    <h4>Monthly Report</h4>
+    <form method="GET" class="mb-4">
+        <div class="mb-3">
+            <label class="form-label small text-muted">Select Month</label>
+            <div class="input-group date-input-group">
+                <span class="input-group-text bg-white border-end-0" aria-hidden="true">
+                    <i class="bi bi-calendar4"></i>
+                </span>
+                <input type="month" name="report_month" class="form-control py-3 date-input-placeholder border-start-0"
+                    value="{{ selected_month or '' }}" data-placeholder="Select Month" required>
+            </div>
+        </div>
+        <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
+    </form>
+
+    {% if report %}
+    <div class="row report-mobile-grid">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="report-mobile-card report-mobile-card-credit h-100">
+                <div class="report-mobile-top">
+                    <span class="report-mobile-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                    <span class="report-mobile-badge">+ Credit</span>
+                </div>
+                <div class="report-mobile-label">Total Credit</div>
+                <div class="report-mobile-value">Rs {{ report.total_credit }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="report-mobile-card report-mobile-card-debit h-100">
+                <div class="report-mobile-top">
+                    <span class="report-mobile-icon"><i class="bi bi-graph-down-arrow"></i></span>
+                    <span class="report-mobile-badge">- Debit</span>
+                </div>
+                <div class="report-mobile-label">Total Debit</div>
+                <div class="report-mobile-value">Rs {{ report.total_debit }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="report-mobile-card report-mobile-card-closing h-100">
+                <div class="report-mobile-top">
+                    <span class="report-mobile-icon"><i class="bi bi-bank"></i></span>
+                    <span class="report-mobile-badge">Overall</span>
+                </div>
+                <div class="report-mobile-label">Closing Balance</div>
+                <div class="report-mobile-value">Rs {{ report.month_closing_balance }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="report-mobile-card report-mobile-card-account h-100">
+                <div class="report-mobile-top">
+                    <span class="report-mobile-icon"><i class="bi bi-star-fill"></i></span>
+                </div>
+                <div class="report-mobile-label">Most Used Account</div>
+                <div class="report-mobile-value report-mobile-name">{{ report.most_used_bank }}</div>
+            </div>
         </div>
     </div>
-    <button class="btn btn-primary w-100 py-3 shadow-soft" type="submit">View Report</button>
-</form>
 
-{% if report %}
-<div class="d-grid d-md-flex justify-content-md-end mb-3">
-    <a class="btn btn-outline-primary" href="{{ url_for('download_monthly_report_pdf', report_month=selected_month) }}">
-        Download PDF
-    </a>
+    <div class="mb-3 mt-2">
+        <div class="report-mobile-summary-head mb-2">
+            <div class="fw-semibold text-muted small mb-0">Bank-wise Summary</div>
+            <a class="btn report-mobile-pdf-btn report-mobile-pdf-inline"
+                href="{{ url_for('download_monthly_report_pdf', report_month=selected_month) }}">
+                <span class="report-mobile-pdf-icon" aria-hidden="true">
+                    <i class="bi bi-file-earmark-arrow-down-fill"></i>
+                </span>
+                <span class="report-mobile-pdf-text">Download</span>
+            </a>
+        </div>
+        <div class="table-responsive recent-entries-wrap">
+            <table class="table table-sm align-middle recent-entries-table report-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Bank Name</th>
+                        <th>Total Credit</th>
+                        <th>Total Debit</th>
+                        <th>Closing Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bank_wise %}
+                    <tr>
+                        <td>{{ b.bank }}</td>
+                        <td class="text-success">{{ b.total_credit }}</td>
+                        <td class="text-danger">{{ b.total_debit }}</td>
+                        <td class="fw-bold">{{ b.closing_balance }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% elif searched_month %}
+    <p class="text-muted">No data found for the selected month.</p>
+    {% endif %}
 </div>
 
-<div class="row">
-    <!-- Summary Cards -->
-    <div class="col-6 col-md-3 mb-3">
-        <div class="card card-stat card-stat-success h-100">
-            <div class="card-header py-2 text-uppercase small">Total Credit</div>
-            <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.total_credit }}</h5>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-        <div class="card card-stat card-stat-danger h-100">
-            <div class="card-header py-2 text-uppercase small">Total Debit</div>
-            <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.total_debit }}</h5>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-        <div class="card card-stat card-stat-info h-100">
-            <div class="card-header py-2 text-uppercase small">Closing</div>
-            <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">Rs {{ report.month_closing_balance }}</h5>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-        <div class="card card-stat card-stat-neutral h-100">
-            <div class="card-header py-2 text-uppercase small">Most Used</div>
-            <div class="card-body p-3">
-                <h5 class="card-title mb-0 fs-6 fs-md-5">{{ report.most_used_bank }}</h5>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="d-none d-lg-block monthly-report-desktop">
+    <h2 class="monthly-report-title">Monthly Report</h2>
 
-<div class="mb-3 mt-2">
-    <div class="fw-semibold text-muted small mb-2">Bank-wise Summary</div>
-    <div class="table-responsive recent-entries-wrap">
-        <table class="table table-sm align-middle recent-entries-table report-table mb-0">
-            <thead>
-                <tr>
-                    <th>Bank Name</th>
-                    <th>Total Credit</th>
-                    <th>Total Debit</th>
-                    <th>Closing Balance</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for b in bank_wise %}
-                <tr>
-                    <td>{{ b.bank }}</td>
-                    <td class="text-success">{{ b.total_credit }}</td>
-                    <td class="text-danger">{{ b.total_debit }}</td>
-                    <td class="fw-bold">{{ b.closing_balance }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+    <div class="monthly-report-toolbar">
+        <form method="GET" class="monthly-report-filter-form">
+            <label class="monthly-report-filter-label" for="desktopReportMonth">Select Month</label>
+            <div class="monthly-report-filter-controls">
+                <input type="month" id="desktopReportMonth" name="report_month"
+                    class="form-control date-input-placeholder monthly-month-field"
+                    value="{{ selected_month or '' }}" data-placeholder="Choose a month" required>
+                <button class="btn btn-primary monthly-view-btn" type="submit">View Report</button>
+            </div>
+        </form>
 
-{% elif searched_month %}
-<p class="text-muted">No data found for the selected month.</p>
-{% endif %}
+        <div class="monthly-report-pdf-slot">
+            {% if report and selected_month %}
+            <a class="btn monthly-pdf-btn" href="{{ url_for('download_monthly_report_pdf', report_month=selected_month) }}"
+                aria-label="Download PDF" title="Download PDF">
+                <span class="monthly-pdf-icon-chip" aria-hidden="true">
+                    <i class="bi bi-file-earmark-arrow-down-fill"></i>
+                </span>
+                <span class="monthly-pdf-text">Download PDF</span>
+            </a>
+            {% else %}
+            <button class="btn monthly-pdf-btn" type="button" disabled
+                aria-label="Download PDF unavailable" title="Download PDF unavailable">
+                <span class="monthly-pdf-icon-chip" aria-hidden="true">
+                    <i class="bi bi-file-earmark-arrow-down-fill"></i>
+                </span>
+                <span class="monthly-pdf-text">Download PDF</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if report %}
+    <div class="row g-3">
+        <div class="col-6 col-xl-3">
+            <div class="monthly-stat-card monthly-stat-credit">
+                <div class="monthly-stat-top">
+                    <span class="monthly-stat-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                    <span class="monthly-stat-badge">+ Credit</span>
+                </div>
+                <div class="monthly-stat-label">Total Credit</div>
+                <div class="monthly-stat-value">Rs {{ report.total_credit }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="monthly-stat-card monthly-stat-debit">
+                <div class="monthly-stat-top">
+                    <span class="monthly-stat-icon"><i class="bi bi-graph-down-arrow"></i></span>
+                    <span class="monthly-stat-badge">- Debit</span>
+                </div>
+                <div class="monthly-stat-label">Total Debit</div>
+                <div class="monthly-stat-value">Rs {{ report.total_debit }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="monthly-stat-card monthly-stat-closing">
+                <div class="monthly-stat-top">
+                    <span class="monthly-stat-icon"><i class="bi bi-bank"></i></span>
+                    <span class="monthly-stat-badge">Overall</span>
+                </div>
+                <div class="monthly-stat-label">Closing Balance</div>
+                <div class="monthly-stat-value">Rs {{ report.month_closing_balance }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="monthly-stat-card monthly-stat-account">
+                <div class="monthly-stat-top">
+                    <span class="monthly-stat-icon"><i class="bi bi-star-fill"></i></span>
+                </div>
+                <div class="monthly-stat-label">Most Used Account</div>
+                <div class="monthly-stat-value monthly-stat-name">{{ report.most_used_bank }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="monthly-bank-summary">
+        <div class="monthly-bank-summary-title">Bank-wise Summary</div>
+        <div class="table-responsive recent-entries-wrap monthly-bank-table-wrap">
+            <table class="table table-sm align-middle recent-entries-table report-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Bank Name</th>
+                        <th>Total Credit</th>
+                        <th>Total Debit</th>
+                        <th>Closing Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bank_wise %}
+                    <tr>
+                        <td>{{ b.bank }}</td>
+                        <td class="text-success">{{ b.total_credit }}</td>
+                        <td class="text-danger">{{ b.total_debit }}</td>
+                        <td class="fw-bold">{{ b.closing_balance }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% elif searched_month %}
+    <div class="monthly-empty-state">
+        No data found for the selected month.
+    </div>
+    {% else %}
+    <div class="monthly-empty-state">
+        Select a month and click View Report to see monthly cards and bank summary.
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
