@@ -101,10 +101,10 @@
                     {% endif %}
                 </div>
                 <div class="table-responsive recent-entries-wrap">
-                    <table class="table table-sm align-middle recent-entries-table mb-0">
+                    <table class="table table-sm align-middle recent-entries-table report-table mb-0">
                         <thead>
                             <tr>
-                                <th>Date/<br>Time</th>
+                                <th>Time</th>
                                 <th>Bank</th>
                                 <th>Opening</th>
                                 <th>Credited</th>
@@ -117,7 +117,6 @@
                             {% for e in date_group.rows %}
                             <tr>
                                 <td>
-                                    <div class="fw-semibold">{{ e.date[8:10] }}/{{ e.date[5:7] }}</div>
                                     <div class="text-muted small">{{ e.time[0:5] }}</div>
                                 </td>
                                 <td>{{ e.bank_name }}</td>

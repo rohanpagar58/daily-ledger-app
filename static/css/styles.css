@@ -226,6 +226,66 @@ h6 {
     border-bottom: 1px solid #6b7280;
 }
 
+/* Report tables: add vertical separators between columns */
+.report-table th:not(:last-child),
+.report-table td:not(:last-child) {
+    border-right: 1px solid var(--border-color);
+}
+
+/* Day-wise pagination */
+.report-pagination {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.65rem 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.report-pagination-meta {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.report-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.report-page-btn {
+    min-width: 104px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.42rem 0.72rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.report-page-btn.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.report-page-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    padding: 0.42rem 0.72rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: #f9fafb;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
 /* Global icon-style Edit/Delete buttons (small action buttons only) */
 .btn-action-icon {
     background-color: transparent;
@@ -242,6 +302,36 @@ button.btn-action-icon[title="Delete"] {
         width: 100vw;
         margin-left: calc(50% - 50vw);
         margin-right: calc(50% - 50vw);
+    }
+
+    .report-pagination {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.55rem;
+    }
+
+    .report-pagination-meta {
+        text-align: center;
+    }
+
+    .report-pagination-controls {
+        width: 100%;
+        margin-left: 0;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 0.45rem;
+    }
+
+    .report-page-btn {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .report-page-indicator {
+        min-width: 0;
+        white-space: nowrap;
+        padding-left: 0.55rem;
+        padding-right: 0.55rem;
     }
 }
 

@@ -66,6 +66,7 @@ def register_bank_routes(
                 float(prev_entry.get("remaining_balance", bank["opening_balance"]))
                 if prev_entry else float(bank["opening_balance"])
             )
+            base_balance = max(0.0, base_balance)
 
             raw_entries = list(entries_col.find({
                 "bank_id": str_bank_id,
@@ -82,14 +83,16 @@ def register_bank_routes(
                     credited = float(e.get("credited", 0))
                 except Exception:
                     credited = 0.0
+                credited = max(0.0, credited)
 
                 try:
                     debited = float(e.get("debited", 0))
                 except Exception:
                     debited = 0.0
+                debited = max(0.0, debited)
 
-                opening_balance = balance
-                balance = balance + credited - debited
+                opening_balance = max(0.0, balance)
+                balance = max(0.0, opening_balance + credited - debited)
                 correct_dt = parse_entry_datetime(e)
 
                 updates = {

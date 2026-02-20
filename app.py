@@ -45,6 +45,18 @@ banks_col = db["banks"]
 entries_col = db["daily_entries"]
 shops_col = db["shops"]
 
+try:
+    entries_col.create_index(
+        [("shop_identifier", 1), ("date", 1), ("time", 1), ("entry_datetime", 1)],
+        name="shop_date_time_entrydt_idx",
+    )
+    entries_col.create_index(
+        [("shop_identifier", 1), ("bank_id", 1), ("date", 1), ("entry_datetime", -1)],
+        name="shop_bank_date_entrydt_idx",
+    )
+except PyMongoError as e:
+    app.logger.error(f"Database error while creating indexes: {e}")
+
 
 # -----------------------------
 # SHARED APP HELPERS
@@ -277,10 +289,27 @@ def add_entry():
     banks = get_shop_banks()
     selected_bank = request.args.get("selected_bank")
 
+    def load_recent_entries():
+        from_date = (date.today() - timedelta(days=6)).isoformat()
+        try:
+            return list(
+                entries_col.find({
+                    "shop_identifier": current_shop_identifier(),
+                    "date": {"$gte": from_date}
+                })
+                .sort([("date", -1), ("time", -1)])
+            )
+        except PyMongoError as e:
+            app.logger.error(f"Database error while loading entries: {e}")
+            flash("Database error occurred. Please try again.", "danger")
+            return []
+
     if request.method == "POST":
         verify_csrf()
         bank_id = request.form.get("bank_id")
         entry_date = today
+        if bank_id:
+            selected_bank = bank_id
 
         if not bank_id:
             error = "Please select a bank"
@@ -298,17 +327,35 @@ def add_entry():
                 bank_oid = to_object_id(bank_id)
                 if not bank_oid:
                     error = "Invalid bank selection"
-                    return render_daily_entry_page(banks=banks, today=today, error=error)
+                    return render_daily_entry_page(
+                        banks=banks,
+                        entries=load_recent_entries(),
+                        today=today,
+                        selected_bank=selected_bank,
+                        error=error
+                    )
 
                 try:
                     bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
                 except PyMongoError as e:
                     app.logger.error(f"Database error while loading bank: {e}")
                     flash("Database error occurred. Please try again.", "danger")
-                    return render_daily_entry_page(banks=banks, today=today, error="Database error occurred. Please try again.")
+                    return render_daily_entry_page(
+                        banks=banks,
+                        entries=load_recent_entries(),
+                        today=today,
+                        selected_bank=selected_bank,
+                        error="Database error occurred. Please try again."
+                    )
                 if not bank:
                     error = "Invalid bank selection"
-                    return render_daily_entry_page(banks=banks, today=today, error=error)
+                    return render_daily_entry_page(
+                        banks=banks,
+                        entries=load_recent_entries(),
+                        today=today,
+                        selected_bank=selected_bank,
+                        error=error
+                    )
 
                 entry_datetime = datetime.now()
 
@@ -324,12 +371,33 @@ def add_entry():
                 except PyMongoError as e:
                     app.logger.error(f"Database error while reading last entry: {e}")
                     flash("Database error occurred. Please try again.", "danger")
-                    return render_daily_entry_page(banks=banks, today=today, error="Database error occurred. Please try again.")
+                    return render_daily_entry_page(
+                        banks=banks,
+                        entries=load_recent_entries(),
+                        today=today,
+                        selected_bank=selected_bank,
+                        error="Database error occurred. Please try again."
+                    )
 
                 opening_balance = (
                     last_entry["remaining_balance"]
                     if last_entry else bank["opening_balance"]
                 )
+                try:
+                    opening_balance = float(opening_balance)
+                except (TypeError, ValueError):
+                    opening_balance = 0.0
+                opening_balance = max(0.0, opening_balance)
+
+                if debited > opening_balance:
+                    error = f"Insufficient balance in {bank['name']}. Available: {opening_balance:.2f}"
+                    return render_daily_entry_page(
+                        banks=banks,
+                        entries=load_recent_entries(),
+                        today=today,
+                        selected_bank=selected_bank,
+                        error=error
+                    )
 
                 remaining_balance = opening_balance + credited - debited
 
@@ -362,19 +430,7 @@ def add_entry():
                     
                 return redirect(url_for("add_entry", selected_bank=bank_id))
 
-    from_date = (date.today() - timedelta(days=6)).isoformat()
-    try:
-        entries = list(
-            entries_col.find({
-                "shop_identifier": current_shop_identifier(),
-                "date": {"$gte": from_date}
-            })
-            .sort([("date", -1), ("time", -1)])
-        )
-    except PyMongoError as e:
-        app.logger.error(f"Database error while loading entries: {e}")
-        entries = []
-        flash("Database error occurred. Please try again.", "danger")
+    entries = load_recent_entries()
 
     return render_daily_entry_page(
         banks=banks,
@@ -418,8 +474,12 @@ def bank_balance(bank_id, entry_date):
         last_entry["remaining_balance"]
         if last_entry else bank["opening_balance"]
     )
+    try:
+        balance = float(balance)
+    except (TypeError, ValueError):
+        balance = 0.0
 
-    return jsonify({"balance": balance})
+    return jsonify({"balance": max(0.0, balance)})
 
 
 # -----------------------------
@@ -451,6 +511,45 @@ def edit_entry(entry_id):
             return "Amounts must be non-negative numbers", 400
         if credited > 0 and debited > 0:
             return "Enter either credited or debited amount, not both", 400
+        try:
+            bank_oid = to_object_id(entry["bank_id"])
+            if not bank_oid:
+                return "Invalid bank selection", 400
+
+            bank = banks_col.find_one({"_id": bank_oid, "shop_identifier": current_shop_identifier()})
+            if not bank:
+                return "Invalid bank selection", 400
+
+            previous_entry = entries_col.find_one(
+                {
+                    "bank_id": entry["bank_id"],
+                    "date": {"$lte": today},
+                    "shop_identifier": current_shop_identifier(),
+                    "_id": {"$ne": entry_oid},
+                },
+                sort=[("entry_datetime", -1)]
+            )
+        except PyMongoError as e:
+            app.logger.error(f"Database error while validating edit balance: {e}")
+            flash("Database error occurred. Please try again.", "danger")
+            return redirect(url_for("add_entry"))
+
+        available_balance = (
+            previous_entry["remaining_balance"]
+            if previous_entry else bank["opening_balance"]
+        )
+        try:
+            available_balance = float(available_balance)
+        except (TypeError, ValueError):
+            available_balance = 0.0
+        available_balance = max(0.0, available_balance)
+
+        if debited > available_balance:
+            flash(
+                f"Insufficient balance in {entry['bank_name']}. Available: {available_balance:.2f}",
+                "danger"
+            )
+            return redirect(url_for("edit_entry", entry_id=entry_id))
 
         try:
             updated_at = datetime.now()
@@ -532,4 +631,4 @@ register_report_routes(
 # RUN APP 
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="192.168.0.107", port=5000, debug=True)
+    app.run(host="192.168.0.219", port=5000, debug=True)

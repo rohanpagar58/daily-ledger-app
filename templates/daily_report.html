@@ -37,10 +37,10 @@
         {{ date_group.date[8:10] }}/{{ date_group.date[5:7] }}/{{ date_group.date[0:4] }}
     </div>
     <div class="table-responsive recent-entries-wrap">
-        <table class="table table-sm align-middle recent-entries-table mb-0">
+        <table class="table table-sm align-middle recent-entries-table report-table mb-0">
             <thead>
                 <tr>
-                    <th>Date/<br>Time</th>
+                    <th>Time</th>
                     <th>Bank</th>
                     <th>Opening</th>
                     <th>Credited</th>
@@ -52,7 +52,6 @@
                 {% for e in date_group.rows %}
                 <tr>
                     <td>
-                        <div class="fw-semibold">{{ e.date[8:10] }}/{{ e.date[5:7] }}</div>
                         <div class="text-muted small">{{ e.time[0:5] }}</div>
                     </td>
                     <td>{{ e.bank_name }}</td>
@@ -67,6 +66,39 @@
     </div>
 </div>
 {% endfor %}
+
+{% if total_pages > 1 %}
+{% set start_day = ((page - 1) * days_per_page) + 1 %}
+{% set end_day = start_day + (grouped_entries|length) - 1 %}
+<div class="report-pagination mt-3" role="navigation" aria-label="Day Wise Pagination">
+    <div class="report-pagination-meta">
+        Showing days <strong>{{ start_day }}-{{ end_day }}</strong> of {{ total_days }}
+    </div>
+    <div class="report-pagination-controls">
+        {% if page > 1 %}
+        <a class="btn btn-outline-secondary btn-sm report-page-btn"
+            href="{{ url_for('daily_report', start_date=start_date, end_date=end_date, page=page-1) }}">
+            <i class="bi bi-chevron-left me-1"></i>Previous
+        </a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm report-page-btn disabled" aria-disabled="true">
+            <i class="bi bi-chevron-left me-1"></i>Previous
+        </span>
+        {% endif %}
+        <span class="report-page-indicator">Page {{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a class="btn btn-outline-secondary btn-sm report-page-btn"
+            href="{{ url_for('daily_report', start_date=start_date, end_date=end_date, page=page+1) }}">
+            Next<i class="bi bi-chevron-right ms-1"></i>
+        </a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm report-page-btn disabled" aria-disabled="true">
+            Next<i class="bi bi-chevron-right ms-1"></i>
+        </span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% elif start_date %}
 <p class="text-muted">No entries found for this range.</p>
 {% endif %}

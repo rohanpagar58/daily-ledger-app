@@ -26,29 +26,144 @@ def register_report_routes(
     check_password_hash_fn,
     recalculate_bank_balances_from_date,
 ):
-    def get_entries_in_range(start_date, end_date):
+    daily_projection = {
+        "_id": 0,
+        "date": 1,
+        "time": 1,
+        "bank_name": 1,
+        "opening_balance": 1,
+        "credited": 1,
+        "debited": 1,
+        "remaining_balance": 1,
+    }
+    summary_projection = {
+        "_id": 0,
+        "date": 1,
+        "time": 1,
+        "entry_datetime": 1,
+        "bank_name": 1,
+        "credited": 1,
+        "debited": 1,
+        "remaining_balance": 1,
+    }
+
+    def to_number(value):
         try:
-            return list(entries_col.find({
-                "date": {"$gte": start_date, "$lte": end_date},
-                "shop_identifier": current_shop_identifier(),
-            }))
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def normalize_date_range(start_date, end_date):
+        try:
+            start_obj = date.fromisoformat(start_date)
+            end_obj = date.fromisoformat(end_date)
+        except (TypeError, ValueError):
+            return None, None
+        if start_obj > end_obj:
+            return None, None
+        return start_obj.isoformat(), end_obj.isoformat()
+
+    def get_month_date_range(report_month):
+        if not re.fullmatch(r"\d{4}-\d{2}", report_month or ""):
+            return None, None
+        try:
+            start_obj = date.fromisoformat(f"{report_month}-01")
+        except ValueError:
+            return None, None
+        next_month = (start_obj.replace(day=28) + timedelta(days=4)).replace(day=1)
+        end_obj = next_month - timedelta(days=1)
+        return start_obj.isoformat(), end_obj.isoformat()
+
+    def get_year_date_range(report_year):
+        if not re.fullmatch(r"\d{4}", report_year or ""):
+            return None, None
+        try:
+            year_int = int(report_year)
+            start_obj = date(year_int, 1, 1)
+            end_obj = date(year_int, 12, 31)
+        except ValueError:
+            return None, None
+        return start_obj.isoformat(), end_obj.isoformat()
+
+    def get_daily_entries_in_range(start_date, end_date):
+        try:
+            return list(
+                entries_col.find(
+                    {
+                        "date": {"$gte": start_date, "$lte": end_date},
+                        "shop_identifier": current_shop_identifier(),
+                    },
+                    daily_projection,
+                ).sort([("date", -1), ("time", -1), ("entry_datetime", -1)])
+            )
         except PyMongoError as e:
-            current_app.logger.error(f"Database error while loading range entries: {e}")
+            current_app.logger.error(f"Database error while loading day-wise entries: {e}")
+            return []
+
+    def get_day_wise_dates_in_range(start_date, end_date):
+        try:
+            dates = entries_col.distinct(
+                "date",
+                {
+                    "date": {"$gte": start_date, "$lte": end_date},
+                    "shop_identifier": current_shop_identifier(),
+                },
+            )
+            valid_dates = [d for d in dates if isinstance(d, str)]
+            valid_dates.sort(reverse=True)
+            return valid_dates
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while loading day-wise dates: {e}")
+            return []
+
+    def get_daily_entries_for_dates(selected_dates):
+        if not selected_dates:
+            return []
+        try:
+            return list(
+                entries_col.find(
+                    {
+                        "date": {"$in": selected_dates},
+                        "shop_identifier": current_shop_identifier(),
+                    },
+                    daily_projection,
+                ).sort([("date", -1), ("time", -1), ("entry_datetime", -1)])
+            )
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while loading paged day-wise entries: {e}")
+            return []
+
+    def get_summary_entries_in_range(start_date, end_date):
+        try:
+            return list(
+                entries_col.find(
+                    {
+                        "date": {"$gte": start_date, "$lte": end_date},
+                        "shop_identifier": current_shop_identifier(),
+                    },
+                    summary_projection,
+                )
+            )
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while loading report summary entries: {e}")
             return []
 
     def build_report(entries):
-        total_credit = sum(e["credited"] for e in entries)
-        total_debit = sum(e["debited"] for e in entries)
+        total_credit = sum(to_number(e.get("credited", 0)) for e in entries)
+        total_debit = sum(to_number(e.get("debited", 0)) for e in entries)
 
         summary = {}
         for e in entries:
-            bank_name = e["bank_name"]
+            bank_name = e.get("bank_name") or "Unknown"
+            credited = to_number(e.get("credited", 0))
+            debited = to_number(e.get("debited", 0))
+            remaining_balance = to_number(e.get("remaining_balance", 0))
             e_dt = e.get("entry_datetime") or parse_entry_datetime(e)
-            summary.setdefault(bank_name, {"credit": 0, "debit": 0, "close": e["remaining_balance"], "dt": e_dt})
-            summary[bank_name]["credit"] += e["credited"]
-            summary[bank_name]["debit"] += e["debited"]
+            summary.setdefault(bank_name, {"credit": 0.0, "debit": 0.0, "close": remaining_balance, "dt": e_dt})
+            summary[bank_name]["credit"] += credited
+            summary[bank_name]["debit"] += debited
             if e_dt >= summary[bank_name]["dt"]:
-                summary[bank_name]["close"] = e["remaining_balance"]
+                summary[bank_name]["close"] = remaining_balance
                 summary[bank_name]["dt"] = e_dt
 
         bank_wise = []
@@ -73,6 +188,65 @@ def register_report_routes(
             "closing_balance": sum(b["closing_balance"] for b in bank_wise),
         }
         return report, bank_wise
+
+    def build_report_aggregate(start_date, end_date):
+        query = {
+            "date": {"$gte": start_date, "$lte": end_date},
+            "shop_identifier": current_shop_identifier(),
+        }
+        pipeline = [
+            {"$match": query},
+            {"$sort": {"bank_name": 1, "date": 1, "time": 1, "entry_datetime": 1}},
+            {
+                "$group": {
+                    "_id": {"$ifNull": ["$bank_name", "Unknown"]},
+                    "total_credit": {"$sum": {"$ifNull": ["$credited", 0]}},
+                    "total_debit": {"$sum": {"$ifNull": ["$debited", 0]}},
+                    "closing_balance": {"$last": {"$ifNull": ["$remaining_balance", 0]}},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "bank": "$_id",
+                    "total_credit": 1,
+                    "total_debit": 1,
+                    "closing_balance": 1,
+                }
+            },
+        ]
+
+        bank_wise = list(entries_col.aggregate(pipeline, allowDiskUse=True))
+        for row in bank_wise:
+            row["bank"] = row.get("bank") or "Unknown"
+            row["total_credit"] = to_number(row.get("total_credit"))
+            row["total_debit"] = to_number(row.get("total_debit"))
+            row["closing_balance"] = to_number(row.get("closing_balance"))
+
+        bank_wise.sort(key=lambda x: x["bank"].lower() if isinstance(x["bank"], str) else "")
+        if not bank_wise:
+            return None, []
+
+        total_credit = sum(b["total_credit"] for b in bank_wise)
+        total_debit = sum(b["total_debit"] for b in bank_wise)
+        most_used = max(bank_wise, key=lambda x: x["total_credit"] + x["total_debit"])["bank"]
+        report = {
+            "total_credit": total_credit,
+            "total_debit": total_debit,
+            "most_used_bank": most_used,
+            "closing_balance": sum(b["closing_balance"] for b in bank_wise),
+        }
+        return report, bank_wise
+
+    def build_report_for_range(start_date, end_date):
+        try:
+            return build_report_aggregate(start_date, end_date)
+        except PyMongoError as e:
+            current_app.logger.error(f"Database error while aggregating report range: {e}")
+            entries = get_summary_entries_in_range(start_date, end_date)
+            if not entries:
+                return None, []
+            return build_report(entries)
 
     def build_monthly_pdf(report_month, report, bank_wise):
         def format_amount(value):
@@ -262,20 +436,42 @@ def register_report_routes(
 
     @app.route("/daily-report")
     def daily_report():
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
+        page = request.args.get("page", default=1, type=int) or 1
+        if page < 1:
+            page = 1
+        days_per_page = 15
+        total_days = 0
+        total_pages = 0
         grouped_entries = []
 
         if start_date and end_date:
-            entries = get_entries_in_range(start_date, end_date)
-            entries.sort(key=lambda x: (x["date"], x["time"]), reverse=True)
-            grouped_entries = group_entries_by_date(entries)
+            valid_start, valid_end = normalize_date_range(start_date, end_date)
+            if not valid_start:
+                flash("Please select a valid date range.", "danger")
+            else:
+                all_dates = get_day_wise_dates_in_range(valid_start, valid_end)
+                total_days = len(all_dates)
+                if total_days > 0:
+                    total_pages = (total_days + days_per_page - 1) // days_per_page
+                    if page > total_pages:
+                        page = total_pages
+                    start_idx = (page - 1) * days_per_page
+                    end_idx = start_idx + days_per_page
+                    page_dates = all_dates[start_idx:end_idx]
+                    entries = get_daily_entries_for_dates(page_dates)
+                    grouped_entries = group_entries_by_date(entries)
 
         return render_template(
             "daily_report.html",
             grouped_entries=grouped_entries,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date or None,
+            end_date=end_date or None,
+            page=page,
+            days_per_page=days_per_page,
+            total_days=total_days,
+            total_pages=total_pages,
         )
 
     @app.route("/monthly-report")
@@ -286,22 +482,13 @@ def register_report_routes(
         bank_wise = []
 
         if report_month:
-            try:
-                entries = list(entries_col.find({
-                    "date": {"$regex": f"^{report_month}"},
-                    "shop_identifier": current_shop_identifier(),
-                }))
-                if entries:
-                    report, bank_wise = build_report(entries)
+            month_start, month_end = get_month_date_range(report_month)
+            if not month_start:
+                flash("Please select a valid month.", "danger")
+            else:
+                report, bank_wise = build_report_for_range(month_start, month_end)
+                if report:
                     report["month_closing_balance"] = report.pop("closing_balance")
-                else:
-                    report = None
-                    bank_wise = []
-            except PyMongoError as e:
-                current_app.logger.error(f"Database error while loading monthly report: {e}")
-                flash("Database error occurred. Please try again.", "danger")
-                report = None
-                bank_wise = []
 
         return render_template(
             "monthly_report.html",
@@ -319,21 +506,17 @@ def register_report_routes(
             flash("Please select a valid month before downloading PDF.", "danger")
             return redirect(url_for("monthly_report"))
 
-        try:
-            entries = list(entries_col.find({
-                "date": {"$regex": f"^{report_month}"},
-                "shop_identifier": current_shop_identifier(),
-            }))
-            report, bank_wise = build_report(entries)
-            report["month_closing_balance"] = report.pop("closing_balance")
-        except PyMongoError as e:
-            current_app.logger.error(f"Database error while creating monthly PDF report: {e}")
-            flash("Database error occurred. Please try again.", "danger")
-            return redirect(url_for("monthly_report", report_month=report_month))
+        month_start, month_end = get_month_date_range(report_month)
+        if not month_start:
+            flash("Please select a valid month before downloading PDF.", "danger")
+            return redirect(url_for("monthly_report"))
 
-        if not entries:
+        report, bank_wise = build_report_for_range(month_start, month_end)
+
+        if not report:
             flash("No data found for the selected month.", "danger")
             return redirect(url_for("monthly_report", report_month=report_month))
+        report["month_closing_balance"] = report.pop("closing_balance")
 
         try:
             date_obj = date.fromisoformat(f"{report_month}-01")
@@ -522,21 +705,16 @@ def register_report_routes(
             flash("Please select a valid year before downloading PDF.", "danger")
             return redirect(url_for("yearly_report"))
 
-        try:
-            entries = list(entries_col.find({
-                "date": {"$regex": f"^{report_year}-"},
-                "shop_identifier": current_shop_identifier(),
-            }))
-            report, bank_wise = build_report(entries)
-            report["year_closing_balance"] = report.pop("closing_balance")
-        except PyMongoError as e:
-            current_app.logger.error(f"Database error while creating yearly PDF report: {e}")
-            flash("Database error occurred. Please try again.", "danger")
-            return redirect(url_for("yearly_report", report_year=report_year))
+        year_start, year_end = get_year_date_range(report_year)
+        if not year_start:
+            flash("Please select a valid year before downloading PDF.", "danger")
+            return redirect(url_for("yearly_report"))
 
-        if not entries:
+        report, bank_wise = build_report_for_range(year_start, year_end)
+        if not report:
             flash("No data found for the selected year.", "danger")
             return redirect(url_for("yearly_report", report_year=report_year))
+        report["year_closing_balance"] = report.pop("closing_balance")
 
         formatted_name = f"{report_year} Yearly Summary Report.pdf"
         pdf_file = build_yearly_pdf(report_year, report, bank_wise)
@@ -557,22 +735,13 @@ def register_report_routes(
         bank_wise = []
 
         if report_year:
-            try:
-                entries = list(entries_col.find({
-                    "date": {"$regex": f"^{report_year}-"},
-                    "shop_identifier": current_shop_identifier(),
-                }))
-                if entries:
-                    report, bank_wise = build_report(entries)
+            year_start, year_end = get_year_date_range(report_year)
+            if not year_start:
+                flash("Please select a valid year.", "danger")
+            else:
+                report, bank_wise = build_report_for_range(year_start, year_end)
+                if report:
                     report["year_closing_balance"] = report.pop("closing_balance")
-                else:
-                    report = None
-                    bank_wise = []
-            except PyMongoError as e:
-                current_app.logger.error(f"Database error while loading yearly report: {e}")
-                flash("Database error occurred. Please try again.", "danger")
-                report = None
-                bank_wise = []
 
         return render_template(
             "yearly_report.html",
@@ -616,16 +785,22 @@ def register_report_routes(
             return redirect(url_for("reports"))
 
         if delete_type == "month":
-            date_regex = f"^{period_value}"
+            range_start, range_end = get_month_date_range(period_value)
+            if not range_start:
+                flash("Please select a valid month.", "danger")
+                return redirect(url_for("reports"))
             period_label = f"Month {period_value}"
-            recalc_start_date = f"{period_value}-01"
+            recalc_start_date = range_start
         else:
-            date_regex = f"^{period_value}-"
+            range_start, range_end = get_year_date_range(period_value)
+            if not range_start:
+                flash("Please select a valid year.", "danger")
+                return redirect(url_for("reports"))
             period_label = f"Year {period_value}"
-            recalc_start_date = f"{period_value}-01-01"
+            recalc_start_date = range_start
 
         query = {
-            "date": {"$regex": date_regex},
+            "date": {"$gte": range_start, "$lte": range_end},
             "shop_identifier": current_shop_identifier(),
         }
 
@@ -658,13 +833,9 @@ def register_report_routes(
         start_date = monday.isoformat()
         end_date = today.isoformat()
 
-        entries = get_entries_in_range(start_date, end_date)
-        if entries:
-            report, bank_wise = build_report(entries)
+        report, bank_wise = build_report_for_range(start_date, end_date)
+        if report:
             report["week_closing_balance"] = report.pop("closing_balance")
-        else:
-            report = None
-            bank_wise = []
 
         return render_template(
             "weekly_report.html",
@@ -676,20 +847,24 @@ def register_report_routes(
 
     @app.route("/custom-report")
     def custom_report():
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
         report = None
         bank_wise = []
 
         if start_date and end_date:
-            entries = get_entries_in_range(start_date, end_date)
-            report, bank_wise = build_report(entries)
-            report["range_closing_balance"] = report.pop("closing_balance")
+            valid_start, valid_end = normalize_date_range(start_date, end_date)
+            if not valid_start:
+                flash("Please select a valid date range.", "danger")
+            else:
+                report, bank_wise = build_report_for_range(valid_start, valid_end)
+                if report:
+                    report["range_closing_balance"] = report.pop("closing_balance")
 
         return render_template(
             "custom_report.html",
             report=report,
             bank_wise=bank_wise,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date or None,
+            end_date=end_date or None,
         )
