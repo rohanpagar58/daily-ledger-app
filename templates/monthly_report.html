@@ -28,7 +28,7 @@
                     <span class="report-mobile-badge">+ Credit</span>
                 </div>
                 <div class="report-mobile-label">Total Credit</div>
-                <div class="report-mobile-value">Rs {{ report.total_credit }}</div>
+                <div class="report-mobile-value">Rs {{ report.total_credit|money }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
@@ -38,7 +38,7 @@
                     <span class="report-mobile-badge">- Debit</span>
                 </div>
                 <div class="report-mobile-label">Total Debit</div>
-                <div class="report-mobile-value">Rs {{ report.total_debit }}</div>
+                <div class="report-mobile-value">Rs {{ report.total_debit|money }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
@@ -48,7 +48,7 @@
                     <span class="report-mobile-badge">Overall</span>
                 </div>
                 <div class="report-mobile-label">Closing Balance</div>
-                <div class="report-mobile-value">Rs {{ report.month_closing_balance }}</div>
+                <div class="report-mobile-value">Rs {{ report.month_closing_balance|money }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3">
@@ -87,9 +87,9 @@
                     {% for b in bank_wise %}
                     <tr>
                         <td>{{ b.bank }}</td>
-                        <td class="text-success">{{ b.total_credit }}</td>
-                        <td class="text-danger">{{ b.total_debit }}</td>
-                        <td class="fw-bold">{{ b.closing_balance }}</td>
+                        <td class="text-success">{{ b.total_credit|money }}</td>
+                        <td class="text-danger">{{ b.total_debit|money }}</td>
+                        <td class="fw-bold">{{ b.closing_balance|money }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -145,7 +145,7 @@
                     <span class="monthly-stat-badge">+ Credit</span>
                 </div>
                 <div class="monthly-stat-label">Total Credit</div>
-                <div class="monthly-stat-value">Rs {{ report.total_credit }}</div>
+                <div class="monthly-stat-value">Rs {{ report.total_credit|money }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
@@ -155,7 +155,7 @@
                     <span class="monthly-stat-badge">- Debit</span>
                 </div>
                 <div class="monthly-stat-label">Total Debit</div>
-                <div class="monthly-stat-value">Rs {{ report.total_debit }}</div>
+                <div class="monthly-stat-value">Rs {{ report.total_debit|money }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
@@ -165,7 +165,7 @@
                     <span class="monthly-stat-badge">Overall</span>
                 </div>
                 <div class="monthly-stat-label">Closing Balance</div>
-                <div class="monthly-stat-value">Rs {{ report.month_closing_balance }}</div>
+                <div class="monthly-stat-value">Rs {{ report.month_closing_balance|money }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
@@ -195,9 +195,9 @@
                     {% for b in bank_wise %}
                     <tr>
                         <td>{{ b.bank }}</td>
-                        <td class="text-success">{{ b.total_credit }}</td>
-                        <td class="text-danger">{{ b.total_debit }}</td>
-                        <td class="fw-bold">{{ b.closing_balance }}</td>
+                        <td class="text-success">{{ b.total_credit|money }}</td>
+                        <td class="text-danger">{{ b.total_debit|money }}</td>
+                        <td class="fw-bold">{{ b.closing_balance|money }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -215,3 +215,4 @@
     {% endif %}
 </div>
 {% endblock %}
+

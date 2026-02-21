@@ -26,11 +26,11 @@
                         {% endif %}
                         <div class="mb-3">
                             <label class="form-label small text-muted">Bank Name</label>
-                            <input type="text" name="bank_name" class="form-control py-3" value="{{ bank_name_value }}" required>
+                            <input type="text" name="bank_name" class="form-control py-3" value="{{ bank_name_value }}" placeholder="eg. HDFC Bank" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small text-muted">Opening Balance (Rs)</label>
-                            <input type="number" name="opening_balance" class="form-control py-3" value="{{ opening_balance_value }}" step="0.01" min="0" required>
+                            <input type="number" name="opening_balance" class="form-control py-3" value="{{ opening_balance_value }}" step="0.01" min="0" placeholder="₹ 0.00" required>
                         </div>
                         {% if edit_mode %}
                         <div class="d-flex gap-2 mobile-bank-edit-actions">
@@ -180,7 +180,7 @@
                                         <span class="add-bank-name-text">{{ bank.name }}</span>
                                     </div>
                                 </td>
-                                <td class="add-bank-balance">&#8377; {{ "{:,.2f}".format(bank.opening_balance|float) }}</td>
+                                <td class="add-bank-balance">&#8377; {{ bank.opening_balance|money }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <a href="{{ url_for('add_bank', edit_id=bank._id) }}" class="btn btn-sm btn-action-icon px-2 py-1"

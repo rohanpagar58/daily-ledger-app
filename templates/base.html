@@ -170,65 +170,56 @@
     <!-- Calculator Modal -->
     <div class="modal fade" id="calculatorModal" tabindex="-1" aria-labelledby="calculatorModalLabel"
         aria-hidden="true">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="calculatorModalLabel">Calculator</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body p-2">
-                    <div class="mb-2 border rounded bg-white px-2 py-1">
-                        <div id="calc-history" class="text-secondary text-end"
-                            style="min-height: 1.2em; font-size: 0.85rem; opacity: 0.7;"></div>
+                <div class="modal-body p-3">
+                    <div class="mb-3 border rounded-4 bg-white px-3 py-2">
+                        <div id="calc-history" class="small text-secondary text-end opacity-75"></div>
                         <input type="text" class="form-control-plaintext text-end fs-3 fw-bold p-0" id="calc-display"
                             readonly value="0">
                     </div>
-                    <div class="row g-1">
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcClear()">C</button></div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('/')">/</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('*')">*</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-danger w-100"
-                                onclick="calcBackspace()">&larr;</button></div>
 
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('7')">7</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('8')">8</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('9')">9</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('-')">-</button>
-                        </div>
+                    <div class="row g-2 align-items-stretch">
+                        <div class="col-9">
+                            <div class="row g-2">
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-4 bg-danger-subtle text-danger border border-danger-subtle" onclick="calcClear()">C</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-4 bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" onclick="calcBackspace()"><i class="bi bi-backspace-fill" aria-hidden="true"></i><span class="visually-hidden">Backspace</span></button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-4 bg-primary-subtle text-primary border border-primary-subtle" onclick="calcAppend('/')">/</button></div>
 
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('4')">4</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('5')">5</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('6')">6</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('+')">+</button>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('7')">7</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('8')">8</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('9')">9</button></div>
+
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('4')">4</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('5')">5</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('6')">6</button></div>
+
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('1')">1</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('2')">2</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('3')">3</button></div>
+
+                                <div class="col-8"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('0')">0</button></div>
+                                <div class="col-4"><button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-light text-dark border border-secondary-subtle" onclick="calcAppend('.')">.</button></div>
+                            </div>
                         </div>
 
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('1')">1</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('2')">2</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('3')">3</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-primary w-100 h-100" onclick="calcResult()">=</button>
-                        </div>
-
-                        <div class="col-6"><button class="btn btn-light w-100" onclick="calcAppend('0')">0</button>
-                        </div>
-                        <div class="col-3"><button class="btn btn-light w-100" onclick="calcAppend('.')">.</button>
+                        <div class="col-3">
+                            <div class="d-flex flex-column gap-2 h-100">
+                                <button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-primary-subtle text-primary border border-primary-subtle" onclick="calcAppend('*')">*</button>
+                                <button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-primary-subtle text-primary border border-primary-subtle" onclick="calcAppend('-')">-</button>
+                                <button type="button" class="btn w-100 py-3 rounded-4 shadow-sm fw-semibold fs-3 bg-primary-subtle text-primary border border-primary-subtle" onclick="calcAppend('+')">+</button>
+                                <button type="button" class="btn w-100 flex-grow-1 rounded-4 shadow-sm fw-semibold fs-2 btn-primary" onclick="calcResult()">=</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
     <!-- Calculator Logic -->
     <script>
         let display = document.getElementById('calc-display');
@@ -314,7 +305,18 @@
             });
         });
     </script>
-    <style>
+        <script>
+        document.addEventListener('click', function (e) {
+            if (!window.matchMedia('(pointer: fine)').matches) return;
+            const group = e.target.closest('.date-input-group');
+            const input = (group && group.querySelector('input[type="date"], input[type="month"]')) ||
+                e.target.closest('input[type="date"], input[type="month"]');
+            if (!input) return;
+            input.focus({ preventScroll: true });
+            try { input.showPicker?.(); } catch (_) {}
+        });
+    </script>
+<style>
         /* Floating Alert Styles */
         .flash-alert {
             position: fixed;

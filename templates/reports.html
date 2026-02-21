@@ -305,8 +305,10 @@
 
             openBtn.addEventListener("click", function () {
                 const selection = getSelection();
-                if (!selection.value) {
-                    alert("Please select a valid " + selection.type + " before continuing.");
+                const activeInput = selection.type === "month" ? monthInput : yearInput;
+
+                if (!activeInput.checkValidity()) {
+                    activeInput.reportValidity();
                     return;
                 }
 

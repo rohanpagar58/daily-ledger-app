@@ -23,7 +23,17 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" required>
+                        <div class="position-relative">
+                            <input type="password" name="password" id="loginPassword" class="form-control pe-5" required>
+                            <button
+                                class="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-3 p-0 border-0 shadow-none"
+                                type="button"
+                                id="toggleLoginPassword"
+                                aria-label="Show password"
+                            >
+                                <i class="bi bi-eye" id="toggleLoginPasswordIcon"></i>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn btn-primary w-100">Login</button>
                 </form>
@@ -35,4 +45,23 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const passwordInput = document.getElementById("loginPassword");
+        const toggleButton = document.getElementById("toggleLoginPassword");
+        const toggleIcon = document.getElementById("toggleLoginPasswordIcon");
+        if (!passwordInput || !toggleButton || !toggleIcon) return;
+
+        toggleButton.addEventListener("click", function () {
+            const isPassword = passwordInput.type === "password";
+            passwordInput.type = isPassword ? "text" : "password";
+            toggleIcon.classList.toggle("bi-eye", !isPassword);
+            toggleIcon.classList.toggle("bi-eye-slash", isPassword);
+            toggleButton.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+    });
+</script>
 {% endblock %}

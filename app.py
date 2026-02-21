@@ -156,6 +156,14 @@ def parse_non_negative_float(value):
     return num
 
 
+@app.template_filter("money")
+def format_money(value):
+    try:
+        return f"{float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "0.00"
+
+
 def to_object_id(value):
     try:
         return ObjectId(value)
@@ -670,5 +678,6 @@ register_report_routes(
 # RUN APP 
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="192.168.0.107", port=5000, debug=True)
-    #app.run(host="10.238.128.77", port=5000, debug=True)
+    app.run(host="192.168.0.107", port=5000, debug=True) # Home
+    #app.run(host="192.168.0.220", port=5000, debug=True) #jmj
+    #app.run(host="10.238.128.77", port=5000, debug=True) # Realme

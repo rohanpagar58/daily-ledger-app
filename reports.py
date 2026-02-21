@@ -26,6 +26,9 @@ def register_report_routes(
     check_password_hash_fn,
     recalculate_bank_balances_from_date,
 ):
+    # Allowed year range for yearly report inputs.
+    report_year_min = 2000
+    report_year_max = 2100
     daily_projection = {
         "_id": 0,
         "date": 1,
@@ -79,6 +82,8 @@ def register_report_routes(
             return None, None
         try:
             year_int = int(report_year)
+            if year_int < report_year_min or year_int > report_year_max:
+                return None, None
             start_obj = date(year_int, 1, 1)
             end_obj = date(year_int, 12, 31)
         except ValueError:
@@ -242,48 +247,114 @@ def register_report_routes(
         try:
             return build_report_aggregate(start_date, end_date)
         except PyMongoError as e:
+            # Fallback to in-memory summary if aggregation fails.
             current_app.logger.error(f"Database error while aggregating report range: {e}")
             entries = get_summary_entries_in_range(start_date, end_date)
             if not entries:
                 return None, []
             return build_report(entries)
 
-    def build_monthly_pdf(report_month, report, bank_wise):
-        def format_amount(value):
-            if isinstance(value, (int, float)):
-                if float(value).is_integer():
-                    return str(int(value))
-                return f"{value:.2f}"
-            return str(value)
+    def attach_closing_balance(report, target_key):
+        # Normalize the common closing key for each report type/template.
+        if report and "closing_balance" in report:
+            report[target_key] = report.pop("closing_balance")
+        return report
 
-        def format_rupee(value):
-            return f"Rs. {format_amount(value)}"
+    def build_report_for_range_with_closing_key(start_date, end_date, closing_key):
+        report, bank_wise = build_report_for_range(start_date, end_date)
+        attach_closing_balance(report, closing_key)
+        return report, bank_wise
 
-        def y_from_top(page_height, top_value):
+    def resolve_month_range_or_flash(report_month, error_message):
+        # Shared month-range validator for routes with consistent flash behavior.
+        month_start, month_end = get_month_date_range(report_month)
+        if not month_start:
+            flash(error_message, "danger")
+            return None, None
+        return month_start, month_end
+
+    def resolve_year_range_or_flash(report_year, error_message):
+        # Shared year-range validator for routes with consistent flash behavior.
+        year_start, year_end = get_year_date_range(report_year)
+        if not year_start:
+            flash(error_message, "danger")
+            return None, None
+        return year_start, year_end
+
+    def delete_entries_and_recalculate(range_start, range_end, recalc_start_date):
+        # Keep balances consistent by recalculating only affected banks after delete.
+        query = {
+            "date": {"$gte": range_start, "$lte": range_end},
+            "shop_identifier": current_shop_identifier(),
+        }
+        affected_bank_ids = entries_col.distinct("bank_id", query)
+        delete_result = entries_col.delete_many(query)
+
+        for bank_id in affected_bank_ids:
+            try:
+                recalculate_bank_balances_from_date(bank_id, recalc_start_date)
+            except Exception as recalc_error:
+                current_app.logger.error(
+                    f"Balance recalc failed for bank_id={bank_id}: {recalc_error}"
+                )
+
+        return delete_result.deleted_count
+
+    def format_amount_for_pdf(value):
+        # Format numbers in Indian grouping (e.g., 1,23,456.78) for PDF display.
+        try:
+            amount = float(value)
+        except (TypeError, ValueError):
+            return "0.00"
+
+        is_negative = amount < 0
+        amount = abs(amount)
+        rounded_amount = round(amount + 1e-9, 2)
+
+        whole_part = int(rounded_amount)
+        decimal_part = int(round((rounded_amount - whole_part) * 100))
+        if decimal_part == 100:
+            whole_part += 1
+            decimal_part = 0
+
+        whole_text = str(whole_part)
+        if len(whole_text) > 3:
+            last_three = whole_text[-3:]
+            rest = whole_text[:-3]
+            parts = []
+            while len(rest) > 2:
+                parts.insert(0, rest[-2:])
+                rest = rest[:-2]
+            if rest:
+                parts.insert(0, rest)
+            whole_text = ",".join(parts + [last_three])
+
+        formatted = f"{whole_text}.{decimal_part:02d}"
+        return f"-{formatted}" if is_negative else formatted
+
+    def format_rupee_for_pdf(value):
+        return f"Rs. {format_amount_for_pdf(value)}"
+
+    def build_summary_pdf(period_value, report, bank_wise, report_title, period_label, closing_balance_key, period_kind):
+        # Shared PDF renderer used by both monthly and yearly exports.
+        def y_from_top(top_value):
             return page_height - top_value
 
-        def draw_summary_card(pdf, x_pos, top_pos, width, height, title, value):
-            y_pos = y_from_top(page_height, top_pos + height)
-
-            pdf.setFillColor(colors.HexColor("#3a3a3a"))
-            pdf.roundRect(x_pos + 2, y_pos - 2, width, height, 10, stroke=0, fill=1)
-
+        def draw_summary_card(x_pos, top_pos, width, height, title, value):
+            # Card block for the top summary metrics row.
+            y_pos = y_from_top(top_pos + height)
             pdf.setFillColor(colors.white)
-            pdf.setStrokeColor(colors.black)
-            pdf.setLineWidth(1.4)
-            pdf.roundRect(x_pos, y_pos, width, height, 10, stroke=1, fill=1)
+            pdf.setStrokeColor(card_border_color)
+            pdf.setLineWidth(max(0.8, scaled(1)))
+            pdf.roundRect(x_pos, y_pos, width, height, card_radius, stroke=1, fill=1)
 
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 10.5)
-            pdf.drawCentredString(x_pos + (width / 2), y_pos + height - 21, str(title))
+            pdf.setFillColor(label_color)
+            pdf.setFont("Helvetica-Bold", card_label_font)
+            pdf.drawString(x_pos + scaled(8), y_pos + height - scaled(18), str(title).upper())
 
-            pdf.setFont("Helvetica-Bold", 12.5)
-            pdf.drawCentredString(x_pos + (width / 2), y_pos + 12, str(value))
-
-        try:
-            month_label = date.fromisoformat(f"{report_month}-01").strftime("%B, %Y")
-        except ValueError:
-            month_label = report_month
+            pdf.setFillColor(text_dark)
+            pdf.setFont("Helvetica-Bold", card_value_font)
+            pdf.drawString(x_pos + scaled(8), y_pos + scaled(16), str(value))
 
         shop = get_current_shop()
         shop_name = (shop or {}).get("name", "Daily Ledger")
@@ -293,15 +364,48 @@ def register_report_routes(
         pdf = canvas.Canvas(buffer, pagesize=A4, pageCompression=1)
         page_width, page_height = A4
 
-        title_color = colors.HexColor("#243f6b")
-        muted_color = colors.HexColor("#6f6f6f")
-        content_left = 72
-        content_right = page_width - 72
+        page_bg_color = colors.white
+        border_color = colors.HexColor("#e2e8f0")
+        card_border_color = colors.HexColor("#d7dee8")
+        text_dark = colors.HexColor("#1e293b")
+        label_color = colors.HexColor("#7b8ca4")
+        muted_text = colors.HexColor("#64748b")
 
-        logo_x = 44
-        logo_top = 24
-        logo_target_width = 110
-        logo_target_height = 50
+        pdf.setFillColor(page_bg_color)
+        pdf.rect(0, 0, page_width, page_height, stroke=0, fill=1)
+
+        normal_margin = 56.69  # 2 cm in points
+        left_margin = normal_margin
+        right_margin = normal_margin
+        top_margin = normal_margin
+        bottom_margin = normal_margin
+        base_top_margin = 16
+        top_offset = top_margin - base_top_margin
+        content_width = page_width - left_margin - right_margin
+        layout_scale = max(0.9, min(1.0, content_width / 510.24))
+
+        def scaled(value):
+            return value * layout_scale
+
+        card_radius = max(8, scaled(10))
+        card_label_font = max(7.0, scaled(7.5))
+        card_value_font = max(10.5, scaled(12))
+        section_heading_font = max(14.0, scaled(16))
+        table_header_font = max(8.0, scaled(8.5))
+        table_body_font = max(9.0, scaled(10))
+        table_side_padding = max(8, scaled(12))
+        table_vertical_padding = max(7, scaled(10))
+        compact_header_font = max(7.2, scaled(7.6))
+        compact_body_font = max(8.2, scaled(9))
+        compact_vertical_padding = max(5.5, scaled(7))
+
+        def from_content_top(top_value):
+            return top_value + top_offset
+
+        logo_x = left_margin
+        logo_top = from_content_top(14)
+        logo_target_width = max(112, scaled(128))
+        logo_target_height = max(30, scaled(34))
         logo_path = os.path.join(current_app.root_path, "static", "images", "Daily_ledger_widename.svg")
         logo_drawn = False
 
@@ -315,57 +419,64 @@ def register_report_routes(
                         logo_target_width / original_width,
                         logo_target_height / original_height,
                     )
-                    logo_draw_width = original_width * logo_scale
                     logo_draw_height = original_height * logo_scale
                     logo_drawing.scale(logo_scale, logo_scale)
-                    logo_y = y_from_top(page_height, logo_top + logo_draw_height)
+                    logo_y = y_from_top(logo_top + logo_draw_height)
                     renderPDF.draw(logo_drawing, pdf, logo_x, logo_y)
                     logo_drawn = True
             except Exception as logo_error:
-                current_app.logger.warning(f"Failed to render SVG logo in monthly PDF: {logo_error}")
+                current_app.logger.warning(f"Failed to render SVG logo in {period_kind} PDF: {logo_error}")
 
         if not logo_drawn:
-            pdf.setFillColor(colors.HexColor("#8ca0b8"))
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(logo_x, y_from_top(page_height, logo_top + 24), "Daily Ledger")
+            pdf.setFillColor(text_dark)
+            pdf.setFont("Helvetica-Bold", max(11, scaled(12)))
+            pdf.drawString(logo_x, y_from_top(from_content_top(31)), "Daily Ledger")
 
-        pdf.setFillColor(muted_color)
-        pdf.setFont("Helvetica", 11)
-        pdf.drawRightString(content_right, y_from_top(page_height, 50), f"Generated On: {generated_on}")
+        pdf.setFillColor(muted_text)
+        pdf.setFont("Helvetica", max(8.5, scaled(9.5)))
+        pdf.drawRightString(page_width - right_margin, y_from_top(from_content_top(31)), f"Generated On: {generated_on}")
 
-        pdf.setFillColor(title_color)
-        pdf.setFont("Helvetica-Bold", 16)
-        pdf.drawCentredString(page_width / 2, y_from_top(page_height, 132), "MONTHLY SUMMARY REPORT")
+        pdf.setFillColor(text_dark)
+        pdf.setFont("Helvetica-Bold", max(19, scaled(22)))
+        pdf.drawCentredString(left_margin + (content_width / 2), y_from_top(from_content_top(68)), report_title)
 
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(content_left, y_from_top(page_height, 182), month_label)
+        info_label_x = left_margin + 6
+        info_value_x = left_margin + max(88, min(104, content_width * 0.22))
 
+        pdf.setFillColor(text_dark)
+        pdf.setFont("Helvetica-Bold", max(10, scaled(11.5)))
+        pdf.drawString(info_label_x, y_from_top(from_content_top(98)), period_label)
+        pdf.drawString(info_label_x, y_from_top(from_content_top(114)), "Shop Name:")
+
+        pdf.setFont("Helvetica-Bold", max(9.5, scaled(10.5)))
+        pdf.drawString(info_value_x, y_from_top(from_content_top(98)), str(period_value))
+        pdf.drawString(info_value_x, y_from_top(from_content_top(114)), str(shop_name))
+
+        overall_heading_top = from_content_top(154)
+        overall_bullet_x = left_margin + 6
+        overall_bullet_y = y_from_top(overall_heading_top + 7)
         pdf.setFillColor(colors.black)
-        pdf.setFont("Helvetica-Bold", 16)
-        pdf.drawCentredString(page_width / 2, y_from_top(page_height, 206), shop_name)
+        pdf.circle(overall_bullet_x, overall_bullet_y, max(2.8, scaled(3.2)), stroke=0, fill=1)
 
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(content_left, y_from_top(page_height, 238), "Overall Summary")
+        pdf.setFillColor(text_dark)
+        pdf.setFont("Helvetica-Bold", section_heading_font)
+        pdf.drawString(left_margin + 16, y_from_top(overall_heading_top + 10), "Overall Summary")
 
-        card_width = 108
-        card_height = 58
-        card_gap = 12
-        cards_total_width = (card_width * 4) + (card_gap * 3)
-        cards_start_x = (page_width - cards_total_width) / 2
-        cards_top = 256
+        cards_top = from_content_top(178)
+        card_gap = max(6, scaled(8))
+        card_width = (content_width - (card_gap * 3)) / 4
+        card_height = max(72, scaled(78))
 
         cards = [
-            ("Total Credit", format_rupee(report["total_credit"])),
-            ("Total Debited", format_rupee(report["total_debit"])),
-            ("Closing Bal", format_rupee(report["month_closing_balance"])),
-            ("Most used Bank", str(report["most_used_bank"])),
+            ("Total Credit", format_rupee_for_pdf(report.get("total_credit", 0))),
+            ("Total Debited", format_rupee_for_pdf(report.get("total_debit", 0))),
+            ("Closing Bal", format_rupee_for_pdf(report.get(closing_balance_key, 0))),
+            ("Most used Bank", str(report.get("most_used_bank", "-"))),
         ]
 
         for index, (label, value) in enumerate(cards):
-            x_pos = cards_start_x + index * (card_width + card_gap)
             draw_summary_card(
-                pdf=pdf,
-                x_pos=x_pos,
+                x_pos=left_margin + (index * (card_width + card_gap)),
                 top_pos=cards_top,
                 width=card_width,
                 height=card_height,
@@ -373,50 +484,108 @@ def register_report_routes(
                 value=value,
             )
 
+        bank_heading_top = cards_top + card_height + max(24, scaled(28))
+        bank_bullet_x = left_margin + 6
+        bank_bullet_y = y_from_top(bank_heading_top + 7)
         pdf.setFillColor(colors.black)
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(content_left, y_from_top(page_height, 390), "Bank-Wise Summary")
+        pdf.circle(bank_bullet_x, bank_bullet_y, max(2.8, scaled(3.2)), stroke=0, fill=1)
 
-        table_data = [["Bank Name", "Total credits", "Total debits", "Closing balance"]]
+        pdf.setFillColor(text_dark)
+        pdf.setFont("Helvetica-Bold", section_heading_font)
+        pdf.drawString(left_margin + 16, y_from_top(bank_heading_top + 10), "Bank-Wise Summary")
+
+        table_data = [["BANK NAME", "TOTAL CREDITS", "TOTAL DEBITS", "CLOSING BALANCE"]]
         if bank_wise:
             for bank in bank_wise:
                 table_data.append([
-                    str(bank["bank"]),
-                    format_rupee(bank["total_credit"]),
-                    format_rupee(bank["total_debit"]),
-                    format_rupee(bank["closing_balance"]),
+                    str(bank.get("bank", "-")),
+                    format_amount_for_pdf(bank.get("total_credit", 0)),
+                    format_amount_for_pdf(bank.get("total_debit", 0)),
+                    format_amount_for_pdf(bank.get("closing_balance", 0)),
                 ])
         else:
-            table_data.append(["-", "Rs. 0", "Rs. 0", "Rs. 0"])
+            table_data.append(["-", "0.00", "0.00", "0.00"])
 
-        table_width = page_width - (content_left * 2)
-        bank_table = Table(table_data, colWidths=[table_width / 4] * 4, repeatRows=1)
+        table_data.append([
+            "Grand Total",
+            format_rupee_for_pdf(report.get("total_credit", 0)),
+            format_rupee_for_pdf(report.get("total_debit", 0)),
+            format_rupee_for_pdf(report.get(closing_balance_key, 0)),
+        ])
+
+        table_width = content_width
+        bank_table = Table(
+            table_data,
+            colWidths=[table_width * 0.34, table_width * 0.22, table_width * 0.22, table_width * 0.22],
+            repeatRows=1,
+        )
+
+        grand_row_index = len(table_data) - 1
         bank_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f4f4f4")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), label_color),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, 0), 12),
-            ("FONTSIZE", (0, 1), (-1, -1), 11),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTSIZE", (0, 0), (-1, 0), table_header_font),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 1), (-1, -1), table_body_font),
+            ("TEXTCOLOR", (0, 1), (-1, -1), text_dark),
+            ("ALIGN", (0, 0), (0, -1), "LEFT"),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("TEXTCOLOR", (1, 1), (1, -1), colors.HexColor("#355f2b")),
-            ("TEXTCOLOR", (2, 1), (2, -1), colors.HexColor("#d00000")),
+            ("LINEABOVE", (0, 0), (-1, 0), 1, border_color),
+            ("LINEBELOW", (0, 0), (-1, 0), 1, border_color),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.7, border_color),
+            ("LEFTPADDING", (0, 0), (-1, -1), table_side_padding),
+            ("RIGHTPADDING", (0, 0), (-1, -1), table_side_padding),
+            ("TOPPADDING", (0, 0), (-1, -1), table_vertical_padding),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), table_vertical_padding),
+            ("BACKGROUND", (0, grand_row_index), (-1, grand_row_index), colors.HexColor("#f8fafc")),
+            ("FONTNAME", (0, grand_row_index), (-1, grand_row_index), "Helvetica-Bold"),
+            ("TEXTCOLOR", (0, grand_row_index), (-1, grand_row_index), text_dark),
+            ("LINEABOVE", (0, grand_row_index), (-1, grand_row_index), 1, border_color),
+            ("LINEBELOW", (0, grand_row_index), (-1, grand_row_index), 1, border_color),
+            ("BOX", (0, 0), (-1, -1), 1, border_color),
         ]))
 
-        table_draw_x = content_left
-        table_top = 414
-        _, table_height = bank_table.wrap(table_width, 200)
-        table_draw_y = y_from_top(page_height, table_top + table_height)
-        bank_table.drawOn(pdf, table_draw_x, table_draw_y)
+        table_top = bank_heading_top + max(24, scaled(28))
+        _, table_height = bank_table.wrap(table_width, page_height)
+        table_y = y_from_top(table_top + table_height)
+
+        if table_y < bottom_margin:
+            # Compact table fonts/padding if content is close to bottom margin.
+            bank_table.setStyle(TableStyle([
+                ("FONTSIZE", (0, 0), (-1, 0), compact_header_font),
+                ("FONTSIZE", (0, 1), (-1, -1), compact_body_font),
+                ("TOPPADDING", (0, 0), (-1, -1), compact_vertical_padding),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), compact_vertical_padding),
+            ]))
+            _, table_height = bank_table.wrap(table_width, page_height)
+            table_y = y_from_top(table_top + table_height)
+            if table_y < bottom_margin:
+                table_y = bottom_margin
+
+        bank_table.drawOn(pdf, left_margin, table_y)
 
         pdf.showPage()
         pdf.save()
         buffer.seek(0)
         return buffer
+
+    def build_monthly_pdf(report_month, report, bank_wise):
+        try:
+            period_value = date.fromisoformat(f"{report_month}-01").strftime("%B %Y")
+        except ValueError:
+            period_value = report_month
+
+        return build_summary_pdf(
+            period_value=period_value,
+            report=report,
+            bank_wise=bank_wise,
+            report_title="MONTHLY SUMMARY REPORT",
+            period_label="Report Month:",
+            closing_balance_key="month_closing_balance",
+            period_kind="monthly",
+        )
 
     def get_current_shop():
         identifier = current_shop_identifier()
@@ -482,13 +651,16 @@ def register_report_routes(
         bank_wise = []
 
         if report_month:
-            month_start, month_end = get_month_date_range(report_month)
-            if not month_start:
-                flash("Please select a valid month.", "danger")
-            else:
-                report, bank_wise = build_report_for_range(month_start, month_end)
-                if report:
-                    report["month_closing_balance"] = report.pop("closing_balance")
+            month_start, month_end = resolve_month_range_or_flash(
+                report_month,
+                "Please select a valid month.",
+            )
+            if month_start:
+                report, bank_wise = build_report_for_range_with_closing_key(
+                    month_start,
+                    month_end,
+                    "month_closing_balance",
+                )
 
         return render_template(
             "monthly_report.html",
@@ -502,21 +674,22 @@ def register_report_routes(
     def download_monthly_report_pdf():
         report_month = (request.args.get("report_month") or "").strip()
 
-        if not re.fullmatch(r"\d{4}-\d{2}", report_month):
-            flash("Please select a valid month before downloading PDF.", "danger")
-            return redirect(url_for("monthly_report"))
-
-        month_start, month_end = get_month_date_range(report_month)
+        month_start, month_end = resolve_month_range_or_flash(
+            report_month,
+            "Please select a valid month before downloading PDF.",
+        )
         if not month_start:
-            flash("Please select a valid month before downloading PDF.", "danger")
             return redirect(url_for("monthly_report"))
 
-        report, bank_wise = build_report_for_range(month_start, month_end)
+        report, bank_wise = build_report_for_range_with_closing_key(
+            month_start,
+            month_end,
+            "month_closing_balance",
+        )
 
         if not report:
             flash("No data found for the selected month.", "danger")
             return redirect(url_for("monthly_report", report_month=report_month))
-        report["month_closing_balance"] = report.pop("closing_balance")
 
         try:
             date_obj = date.fromisoformat(f"{report_month}-01")
@@ -533,188 +706,35 @@ def register_report_routes(
         )
 
     def build_yearly_pdf(report_year, report, bank_wise):
-        def format_amount(value):
-            if isinstance(value, (int, float)):
-                if float(value).is_integer():
-                    return str(int(value))
-                return f"{value:.2f}"
-            return str(value)
-
-        def format_rupee(value):
-            return f"Rs. {format_amount(value)}"
-
-        def y_from_top(page_height, top_value):
-            return page_height - top_value
-
-        def draw_summary_card(pdf, x_pos, top_pos, width, height, title, value):
-            y_pos = y_from_top(page_height, top_pos + height)
-
-            pdf.setFillColor(colors.HexColor("#3a3a3a"))
-            pdf.roundRect(x_pos + 2, y_pos - 2, width, height, 10, stroke=0, fill=1)
-
-            pdf.setFillColor(colors.white)
-            pdf.setStrokeColor(colors.black)
-            pdf.setLineWidth(1.4)
-            pdf.roundRect(x_pos, y_pos, width, height, 10, stroke=1, fill=1)
-
-            pdf.setFillColor(colors.black)
-            pdf.setFont("Helvetica-Bold", 10.5)
-            pdf.drawCentredString(x_pos + (width / 2), y_pos + height - 21, str(title))
-
-            pdf.setFont("Helvetica-Bold", 12.5)
-            pdf.drawCentredString(x_pos + (width / 2), y_pos + 12, str(value))
-
-        shop = get_current_shop()
-        shop_name = (shop or {}).get("name", "Daily Ledger")
-        generated_on = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-        buffer = BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=A4, pageCompression=1)
-        page_width, page_height = A4
-
-        title_color = colors.HexColor("#243f6b")
-        muted_color = colors.HexColor("#6f6f6f")
-        content_left = 72
-        content_right = page_width - 72
-
-        logo_x = 44
-        logo_top = 24
-        logo_target_width = 110
-        logo_target_height = 50
-        logo_path = os.path.join(current_app.root_path, "static", "images", "Daily_ledger_widename.svg")
-        logo_drawn = False
-
-        if svg2rlg and os.path.exists(logo_path):
-            try:
-                logo_drawing = svg2rlg(logo_path)
-                if logo_drawing and logo_drawing.width and logo_drawing.height:
-                    original_width = float(logo_drawing.width)
-                    original_height = float(logo_drawing.height)
-                    logo_scale = min(
-                        logo_target_width / original_width,
-                        logo_target_height / original_height,
-                    )
-                    logo_draw_width = original_width * logo_scale
-                    logo_draw_height = original_height * logo_scale
-                    logo_drawing.scale(logo_scale, logo_scale)
-                    logo_y = y_from_top(page_height, logo_top + logo_draw_height)
-                    renderPDF.draw(logo_drawing, pdf, logo_x, logo_y)
-                    logo_drawn = True
-            except Exception as logo_error:
-                current_app.logger.warning(f"Failed to render SVG logo in yearly PDF: {logo_error}")
-
-        if not logo_drawn:
-            pdf.setFillColor(colors.HexColor("#8ca0b8"))
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(logo_x, y_from_top(page_height, logo_top + 24), "Daily Ledger")
-
-        pdf.setFillColor(muted_color)
-        pdf.setFont("Helvetica", 11)
-        pdf.drawRightString(content_right, y_from_top(page_height, 50), f"Generated On: {generated_on}")
-
-        pdf.setFillColor(title_color)
-        pdf.setFont("Helvetica-Bold", 16)
-        pdf.drawCentredString(page_width / 2, y_from_top(page_height, 132), "YEARLY SUMMARY REPORT")
-
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(content_left, y_from_top(page_height, 182), f"Year: {report_year}")
-
-        pdf.setFillColor(colors.black)
-        pdf.setFont("Helvetica-Bold", 16)
-        pdf.drawCentredString(page_width / 2, y_from_top(page_height, 206), shop_name)
-
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(content_left, y_from_top(page_height, 238), "Overall Summary")
-
-        card_width = 108
-        card_height = 58
-        card_gap = 12
-        cards_total_width = (card_width * 4) + (card_gap * 3)
-        cards_start_x = (page_width - cards_total_width) / 2
-        cards_top = 256
-
-        cards = [
-            ("Total Credit", format_rupee(report["total_credit"])),
-            ("Total Debited", format_rupee(report["total_debit"])),
-            ("Closing Bal", format_rupee(report["year_closing_balance"])),
-            ("Most used Bank", str(report["most_used_bank"])),
-        ]
-
-        for index, (label, value) in enumerate(cards):
-            x_pos = cards_start_x + index * (card_width + card_gap)
-            draw_summary_card(
-                pdf=pdf,
-                x_pos=x_pos,
-                top_pos=cards_top,
-                width=card_width,
-                height=card_height,
-                title=label,
-                value=value,
-            )
-
-        pdf.setFillColor(colors.black)
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(content_left, y_from_top(page_height, 390), "Bank-Wise Summary")
-
-        table_data = [["Bank Name", "Total credits", "Total debits", "Closing balance"]]
-        if bank_wise:
-            for bank in bank_wise:
-                table_data.append([
-                    str(bank["bank"]),
-                    format_rupee(bank["total_credit"]),
-                    format_rupee(bank["total_debit"]),
-                    format_rupee(bank["closing_balance"]),
-                ])
-        else:
-            table_data.append(["-", "Rs. 0", "Rs. 0", "Rs. 0"])
-
-        table_width = page_width - (content_left * 2)
-        bank_table = Table(table_data, colWidths=[table_width / 4] * 4, repeatRows=1)
-        bank_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f4f4f4")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, 0), 12),
-            ("FONTSIZE", (0, 1), (-1, -1), 11),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("TEXTCOLOR", (1, 1), (1, -1), colors.HexColor("#355f2b")),
-            ("TEXTCOLOR", (2, 1), (2, -1), colors.HexColor("#d00000")),
-        ]))
-
-        table_draw_x = content_left
-        table_top = 414
-        _, table_height = bank_table.wrap(table_width, 200)
-        table_draw_y = y_from_top(page_height, table_top + table_height)
-        bank_table.drawOn(pdf, table_draw_x, table_draw_y)
-
-        pdf.showPage()
-        pdf.save()
-        buffer.seek(0)
-        return buffer
+        return build_summary_pdf(
+            period_value=str(report_year),
+            report=report,
+            bank_wise=bank_wise,
+            report_title="YEARLY SUMMARY REPORT",
+            period_label="Report Year:",
+            closing_balance_key="year_closing_balance",
+            period_kind="yearly",
+        )
 
     @app.route("/yearly-report/pdf")
     def download_yearly_report_pdf():
         report_year = (request.args.get("report_year") or "").strip()
 
-        if not re.fullmatch(r"\d{4}", report_year):
-            flash("Please select a valid year before downloading PDF.", "danger")
-            return redirect(url_for("yearly_report"))
-
-        year_start, year_end = get_year_date_range(report_year)
+        year_start, year_end = resolve_year_range_or_flash(
+            report_year,
+            "Please select a valid year before downloading PDF.",
+        )
         if not year_start:
-            flash("Please select a valid year before downloading PDF.", "danger")
             return redirect(url_for("yearly_report"))
 
-        report, bank_wise = build_report_for_range(year_start, year_end)
+        report, bank_wise = build_report_for_range_with_closing_key(
+            year_start,
+            year_end,
+            "year_closing_balance",
+        )
         if not report:
             flash("No data found for the selected year.", "danger")
             return redirect(url_for("yearly_report", report_year=report_year))
-        report["year_closing_balance"] = report.pop("closing_balance")
 
         formatted_name = f"{report_year} Yearly Summary Report.pdf"
         pdf_file = build_yearly_pdf(report_year, report, bank_wise)
@@ -735,13 +755,16 @@ def register_report_routes(
         bank_wise = []
 
         if report_year:
-            year_start, year_end = get_year_date_range(report_year)
-            if not year_start:
-                flash("Please select a valid year.", "danger")
-            else:
-                report, bank_wise = build_report_for_range(year_start, year_end)
-                if report:
-                    report["year_closing_balance"] = report.pop("closing_balance")
+            year_start, year_end = resolve_year_range_or_flash(
+                report_year,
+                "Please select a valid year.",
+            )
+            if year_start:
+                report, bank_wise = build_report_for_range_with_closing_key(
+                    year_start,
+                    year_end,
+                    "year_closing_balance",
+                )
 
         return render_template(
             "yearly_report.html",
@@ -767,13 +790,22 @@ def register_report_routes(
             flash("Please select month or year.", "danger")
             return redirect(url_for("reports"))
 
-        if delete_type == "month" and not re.fullmatch(r"\d{4}-\d{2}", period_value):
-            flash("Please select a valid month.", "danger")
-            return redirect(url_for("reports"))
-
-        if delete_type == "year" and not re.fullmatch(r"\d{4}", period_value):
-            flash("Please select a valid year.", "danger")
-            return redirect(url_for("reports"))
+        if delete_type == "month":
+            range_start, range_end = resolve_month_range_or_flash(
+                period_value,
+                "Please select a valid month.",
+            )
+            if not range_start:
+                return redirect(url_for("reports"))
+            period_label = f"Month {period_value}"
+        else:
+            range_start, range_end = resolve_year_range_or_flash(
+                period_value,
+                f"Please select a valid year between {report_year_min} and {report_year_max}.",
+            )
+            if not range_start:
+                return redirect(url_for("reports"))
+            period_label = f"Year {period_value}"
 
         shop = get_current_shop()
         if not shop:
@@ -784,40 +816,15 @@ def register_report_routes(
             flash("Incorrect password. Data was not deleted.", "danger")
             return redirect(url_for("reports"))
 
-        if delete_type == "month":
-            range_start, range_end = get_month_date_range(period_value)
-            if not range_start:
-                flash("Please select a valid month.", "danger")
-                return redirect(url_for("reports"))
-            period_label = f"Month {period_value}"
-            recalc_start_date = range_start
-        else:
-            range_start, range_end = get_year_date_range(period_value)
-            if not range_start:
-                flash("Please select a valid year.", "danger")
-                return redirect(url_for("reports"))
-            period_label = f"Year {period_value}"
-            recalc_start_date = range_start
-
-        query = {
-            "date": {"$gte": range_start, "$lte": range_end},
-            "shop_identifier": current_shop_identifier(),
-        }
-
         try:
-            affected_bank_ids = entries_col.distinct("bank_id", query)
-            delete_result = entries_col.delete_many(query)
-
-            for bank_id in affected_bank_ids:
-                try:
-                    recalculate_bank_balances_from_date(bank_id, recalc_start_date)
-                except Exception as recalc_error:
-                    current_app.logger.error(
-                        f"Balance recalc failed for bank_id={bank_id}: {recalc_error}"
-                    )
+            deleted_count = delete_entries_and_recalculate(
+                range_start=range_start,
+                range_end=range_end,
+                recalc_start_date=range_start,
+            )
 
             flash(
-                f"{period_label} data deleted successfully. {delete_result.deleted_count} entries removed.",
+                f"{period_label} data deleted successfully. {deleted_count} entries removed.",
                 "success",
             )
         except PyMongoError as e:
@@ -833,9 +840,11 @@ def register_report_routes(
         start_date = monday.isoformat()
         end_date = today.isoformat()
 
-        report, bank_wise = build_report_for_range(start_date, end_date)
-        if report:
-            report["week_closing_balance"] = report.pop("closing_balance")
+        report, bank_wise = build_report_for_range_with_closing_key(
+            start_date,
+            end_date,
+            "week_closing_balance",
+        )
 
         return render_template(
             "weekly_report.html",
@@ -857,9 +866,11 @@ def register_report_routes(
             if not valid_start:
                 flash("Please select a valid date range.", "danger")
             else:
-                report, bank_wise = build_report_for_range(valid_start, valid_end)
-                if report:
-                    report["range_closing_balance"] = report.pop("closing_balance")
+                report, bank_wise = build_report_for_range_with_closing_key(
+                    valid_start,
+                    valid_end,
+                    "range_closing_balance",
+                )
 
         return render_template(
             "custom_report.html",

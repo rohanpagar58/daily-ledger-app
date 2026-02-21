@@ -33,7 +33,7 @@
                         </div>
                         <div class="col-12 col-lg-4">
                             <label class="form-label small text-muted">Available Before Entry</label>
-                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="{{ edit_entry.opening_balance }}" readonly>
+                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="{{ edit_entry.opening_balance|money }}" readonly>
                         </div>
                         <div class="col-12 col-lg-4">
                             <label class="form-label small text-muted">Date</label>
@@ -50,12 +50,12 @@
                     <div class="row g-2 g-lg-3 mb-3 entry-amount-row">
                         <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Credited</label>
-                            <input type="number" name="credited" class="form-control py-3" placeholder="0" min="0" value="{{ credited_value }}"
+                            <input type="number" name="credited" class="form-control py-3" placeholder="₹ 0.00" min="0" value="{{ credited_value }}"
                                 step="0.01">
                         </div>
                         <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Debited</label>
-                            <input type="number" name="debited" class="form-control py-3" placeholder="0" min="0" value="{{ debited_value }}"
+                            <input type="number" name="debited" class="form-control py-3" placeholder="₹ 0.00" min="0" value="{{ debited_value }}"
                                 step="0.01">
                         </div>
                     </div>
@@ -94,7 +94,7 @@
 
                         <div class="col-12 col-lg-4">
                             <label class="form-label small text-muted">Available Balance</label>
-                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="0" readonly>
+                            <input type="text" id="availableBalance" class="form-control py-3 bg-light" value="0.00" readonly>
                         </div>
 
                         <div class="col-12 col-lg-4">
@@ -112,12 +112,12 @@
                     <div class="row g-2 g-lg-3 mb-3 entry-amount-row">
                         <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Credited</label>
-                            <input type="number" name="credited" class="form-control py-3" placeholder="0" min="0"
+                            <input type="number" name="credited" class="form-control py-3" placeholder="₹ 0.00" min="0"
                                 step="0.01">
                         </div>
                         <div class="col-6 col-lg-4 entry-amount-col">
                             <label class="form-label small text-muted">Debited</label>
-                            <input type="number" name="debited" class="form-control py-3" placeholder="0" min="0"
+                            <input type="number" name="debited" class="form-control py-3" placeholder="₹ 0.00" min="0"
                                 step="0.01">
                         </div>
                     </div>
@@ -175,10 +175,10 @@
                                     <div class="text-muted small">{{ e.time[0:5] }}</div>
                                 </td>
                                 <td>{{ e.bank_name }}</td>
-                                <td>{{ e.opening_balance }}</td>
-                                <td class="text-success">{{ e.credited }}</td>
-                                <td class="text-danger">{{ e.debited }}</td>
-                                <td>{{ e.remaining_balance }}</td>
+                                <td>{{ e.opening_balance|money }}</td>
+                                <td class="text-success">{{ e.credited|money }}</td>
+                                <td class="text-danger">{{ e.debited|money }}</td>
+                                <td>{{ e.remaining_balance|money }}</td>
                                 <td>
                                     {% if e.date == today %}
                                     <div class="d-flex gap-1 justify-content-center">
@@ -258,21 +258,32 @@
             return;
         }
 
+        function formatMoney(value) {
+            const amount = Number(value);
+            if (Number.isNaN(amount)) {
+                return "0.00";
+            }
+            return amount.toLocaleString("en-IN", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
         const bankId = bankSelect.value;
         const entryDate = dateInput.value;
 
         if (!bankId || !entryDate) {
-            balanceField.value = "0";
+            balanceField.value = "0.00";
             return;
         }
 
         fetch(`/bank-balance/${bankId}/${entryDate}`)
             .then(res => res.json())
             .then(data => {
-                balanceField.value = data.balance;
+                balanceField.value = formatMoney(data.balance);
             })
             .catch(() => {
-                balanceField.value = "0";
+                balanceField.value = "0.00";
             });
     }
 
@@ -285,3 +296,4 @@
     });
 </script>
 {% endblock %}
+

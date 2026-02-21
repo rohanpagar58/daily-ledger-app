@@ -304,10 +304,34 @@ h6 {
     background-color: transparent;
     border: none;
     box-shadow: none;
-    color: #4b5563;
+    color: #1e3a8a;
 }
-button.btn-action-icon[title="Delete"] {
-    color: #dc3545;
+
+a.btn-action-icon[title="Edit"],
+button.btn-action-icon[title="Edit"] {
+    color: #1e3a8a;
+}
+
+a.btn-action-icon[title="Edit"]:hover,
+a.btn-action-icon[title="Edit"]:focus-visible,
+button.btn-action-icon[title="Edit"]:hover,
+button.btn-action-icon[title="Edit"]:focus-visible {
+    color: #1d4ed8;
+}
+
+a.btn-action-icon[title="Delete"],
+button.btn-action-icon[title="Delete"],
+button.btn-action-icon.open-delete-bank-modal {
+    color: #dc2626;
+}
+
+a.btn-action-icon[title="Delete"]:hover,
+a.btn-action-icon[title="Delete"]:focus-visible,
+button.btn-action-icon[title="Delete"]:hover,
+button.btn-action-icon[title="Delete"]:focus-visible,
+button.btn-action-icon.open-delete-bank-modal:hover,
+button.btn-action-icon.open-delete-bank-modal:focus-visible {
+    color: #b91c1c;
 }
 
 .edit-entry-cancel {
@@ -1428,6 +1452,30 @@ body.app-shell .card-body.text-center p.text-muted {
         color: #fff;
     }
 
+    .home-action-card-bank {
+        border-color: #0f766e;
+        background: linear-gradient(135deg, #0f766e 0%, #0ea5a8 100%);
+        color: #fff;
+        box-shadow: 0 18px 34px -20px rgba(15, 118, 110, 0.6);
+    }
+
+    .home-action-card-bank:hover {
+        border-color: #0f766e;
+        color: #fff;
+    }
+
+    .home-action-card-reports {
+        border-color: #b45309;
+        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+        color: #fff;
+        box-shadow: 0 18px 34px -20px rgba(180, 83, 9, 0.55);
+    }
+
+    .home-action-card-reports:hover {
+        border-color: #b45309;
+        color: #fff;
+    }
+
     .home-action-bg-icon {
         position: absolute;
         top: -18px;
@@ -1451,7 +1499,9 @@ body.app-shell .card-body.text-center p.text-muted {
         font-size: 1.45rem;
     }
 
-    .home-action-card-primary .home-action-icon {
+    .home-action-card-primary .home-action-icon,
+    .home-action-card-bank .home-action-icon,
+    .home-action-card-reports .home-action-icon {
         background: rgba(255, 255, 255, 0.2);
         color: #fff;
     }
@@ -1461,6 +1511,7 @@ body.app-shell .card-body.text-center p.text-muted {
         font-weight: 800;
         margin-bottom: 0.32rem;
         line-height: 1.15;
+        color: #fff;
     }
 
     .home-action-card p {
@@ -1470,7 +1521,9 @@ body.app-shell .card-body.text-center p.text-muted {
         color: #64748b;
     }
 
-    .home-action-card-primary p {
+    .home-action-card-primary p,
+    .home-action-card-bank p,
+    .home-action-card-reports p {
         color: rgba(255, 255, 255, 0.88);
     }
 
@@ -1484,7 +1537,9 @@ body.app-shell .card-body.text-center p.text-muted {
         color: #2563eb;
     }
 
-    .home-action-card-primary .home-action-cta {
+    .home-action-card-primary .home-action-cta,
+    .home-action-card-bank .home-action-cta,
+    .home-action-card-reports .home-action-cta {
         color: #fff;
     }
 
@@ -1665,10 +1720,6 @@ body.app-shell .card-body.text-center p.text-muted {
         font-size: 0.98rem;
         font-weight: 700;
         color: #475569;
-    }
-
-    .add-bank-desktop .add-bank-table .btn-action-icon {
-        color: #8a99ad;
     }
 
 
