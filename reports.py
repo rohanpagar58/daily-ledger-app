@@ -243,43 +243,28 @@ def register_report_routes(
         }
         return report, bank_wise
 
-    def build_report_for_range(start_date, end_date):
+    def build_report_for_range(start_date, end_date, closing_key="closing_balance"):
         try:
-            return build_report_aggregate(start_date, end_date)
+            report, bank_wise = build_report_aggregate(start_date, end_date)
         except PyMongoError as e:
             # Fallback to in-memory summary if aggregation fails.
             current_app.logger.error(f"Database error while aggregating report range: {e}")
             entries = get_summary_entries_in_range(start_date, end_date)
             if not entries:
                 return None, []
-            return build_report(entries)
+            report, bank_wise = build_report(entries)
 
-    def attach_closing_balance(report, target_key):
-        # Normalize the common closing key for each report type/template.
-        if report and "closing_balance" in report:
-            report[target_key] = report.pop("closing_balance")
-        return report
-
-    def build_report_for_range_with_closing_key(start_date, end_date, closing_key):
-        report, bank_wise = build_report_for_range(start_date, end_date)
-        attach_closing_balance(report, closing_key)
+        if report and closing_key != "closing_balance" and "closing_balance" in report:
+            report[closing_key] = report.pop("closing_balance")
         return report, bank_wise
 
-    def resolve_month_range_or_flash(report_month, error_message):
-        # Shared month-range validator for routes with consistent flash behavior.
-        month_start, month_end = get_month_date_range(report_month)
-        if not month_start:
+    def resolve_range_or_flash(period_value, get_range_fn, error_message):
+        # Shared period-range validator for routes with consistent flash behavior.
+        start_date, end_date = get_range_fn(period_value)
+        if not start_date:
             flash(error_message, "danger")
             return None, None
-        return month_start, month_end
-
-    def resolve_year_range_or_flash(report_year, error_message):
-        # Shared year-range validator for routes with consistent flash behavior.
-        year_start, year_end = get_year_date_range(report_year)
-        if not year_start:
-            flash(error_message, "danger")
-            return None, None
-        return year_start, year_end
+        return start_date, end_date
 
     def delete_entries_and_recalculate(range_start, range_end, recalc_start_date):
         # Keep balances consistent by recalculating only affected banks after delete.
@@ -651,15 +636,16 @@ def register_report_routes(
         bank_wise = []
 
         if report_month:
-            month_start, month_end = resolve_month_range_or_flash(
+            month_start, month_end = resolve_range_or_flash(
                 report_month,
+                get_month_date_range,
                 "Please select a valid month.",
             )
             if month_start:
-                report, bank_wise = build_report_for_range_with_closing_key(
+                report, bank_wise = build_report_for_range(
                     month_start,
                     month_end,
-                    "month_closing_balance",
+                    closing_key="month_closing_balance",
                 )
 
         return render_template(
@@ -674,17 +660,18 @@ def register_report_routes(
     def download_monthly_report_pdf():
         report_month = (request.args.get("report_month") or "").strip()
 
-        month_start, month_end = resolve_month_range_or_flash(
+        month_start, month_end = resolve_range_or_flash(
             report_month,
+            get_month_date_range,
             "Please select a valid month before downloading PDF.",
         )
         if not month_start:
             return redirect(url_for("monthly_report"))
 
-        report, bank_wise = build_report_for_range_with_closing_key(
+        report, bank_wise = build_report_for_range(
             month_start,
             month_end,
-            "month_closing_balance",
+            closing_key="month_closing_balance",
         )
 
         if not report:
@@ -720,17 +707,18 @@ def register_report_routes(
     def download_yearly_report_pdf():
         report_year = (request.args.get("report_year") or "").strip()
 
-        year_start, year_end = resolve_year_range_or_flash(
+        year_start, year_end = resolve_range_or_flash(
             report_year,
+            get_year_date_range,
             "Please select a valid year before downloading PDF.",
         )
         if not year_start:
             return redirect(url_for("yearly_report"))
 
-        report, bank_wise = build_report_for_range_with_closing_key(
+        report, bank_wise = build_report_for_range(
             year_start,
             year_end,
-            "year_closing_balance",
+            closing_key="year_closing_balance",
         )
         if not report:
             flash("No data found for the selected year.", "danger")
@@ -755,15 +743,16 @@ def register_report_routes(
         bank_wise = []
 
         if report_year:
-            year_start, year_end = resolve_year_range_or_flash(
+            year_start, year_end = resolve_range_or_flash(
                 report_year,
+                get_year_date_range,
                 "Please select a valid year.",
             )
             if year_start:
-                report, bank_wise = build_report_for_range_with_closing_key(
+                report, bank_wise = build_report_for_range(
                     year_start,
                     year_end,
-                    "year_closing_balance",
+                    closing_key="year_closing_balance",
                 )
 
         return render_template(
@@ -791,16 +780,18 @@ def register_report_routes(
             return redirect(url_for("reports"))
 
         if delete_type == "month":
-            range_start, range_end = resolve_month_range_or_flash(
+            range_start, range_end = resolve_range_or_flash(
                 period_value,
+                get_month_date_range,
                 "Please select a valid month.",
             )
             if not range_start:
                 return redirect(url_for("reports"))
             period_label = f"Month {period_value}"
         else:
-            range_start, range_end = resolve_year_range_or_flash(
+            range_start, range_end = resolve_range_or_flash(
                 period_value,
+                get_year_date_range,
                 f"Please select a valid year between {report_year_min} and {report_year_max}.",
             )
             if not range_start:
@@ -840,10 +831,10 @@ def register_report_routes(
         start_date = monday.isoformat()
         end_date = today.isoformat()
 
-        report, bank_wise = build_report_for_range_with_closing_key(
+        report, bank_wise = build_report_for_range(
             start_date,
             end_date,
-            "week_closing_balance",
+            closing_key="week_closing_balance",
         )
 
         return render_template(
@@ -866,10 +857,10 @@ def register_report_routes(
             if not valid_start:
                 flash("Please select a valid date range.", "danger")
             else:
-                report, bank_wise = build_report_for_range_with_closing_key(
+                report, bank_wise = build_report_for_range(
                     valid_start,
                     valid_end,
-                    "range_closing_balance",
+                    closing_key="range_closing_balance",
                 )
 
         return render_template(

@@ -21,8 +21,16 @@ load_dotenv()
 # FLASK INIT
 # -----------------------------
 app = Flask(__name__)
-# Use SECRET_KEY from environment or fall back to a random one (not recommended for production persistence)
-app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
+
+
+def require_env(name):
+    value = (os.getenv(name) or "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+app.secret_key = require_env("SECRET_KEY")
 session_cookie_secure = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
 app.config.update(
     SESSION_COOKIE_SECURE=session_cookie_secure,
@@ -35,11 +43,10 @@ app.config.update(
 # -----------------------------
 # MONGODB CONNECTION
 # -----------------------------
-# Get MongoDB URI from environment variable. 
-# If not set, default to local localhost (for local development).
-mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+# MongoDB URI is required for startup.
+mongo_uri = require_env("MONGO_URI")
 client = MongoClient(mongo_uri)
-db = client.get_database("daily_ledger_db")  # Valid for both Atlas and local if URI includes db name or not
+db = client.get_database("daily_ledger_db")  
 
 banks_col = db["banks"]
 entries_col = db["daily_entries"]
@@ -92,6 +99,12 @@ def render_daily_entry_page(banks, today, selected_bank=None, error=None, entrie
         selected_bank=selected_bank,
         edit_entry=edit_entry,
     )
+
+
+def db_error_redirect(context, error, route="add_entry", **kwargs):
+    app.logger.error(f"Database error while {context}: {error}")
+    flash("Database error occurred. Please try again.", "danger")
+    return redirect(url_for(route, **kwargs))
 
 
 # -----------------------------
@@ -204,6 +217,8 @@ def home():
 # -----------------------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    if session.get("shop_name"):
+        return redirect(url_for("home"))
     error = None
     if request.method == "POST":
         verify_csrf()
@@ -241,6 +256,8 @@ def signup():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("shop_name"):  
+        return redirect(url_for("home"))
     error = None
     if request.method == "POST":
         verify_csrf()
@@ -327,9 +344,7 @@ def add_entry():
             try:
                 entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
             except PyMongoError as e:
-                app.logger.error(f"Database error while loading entry for inline edit: {e}")
-                flash("Database error occurred. Please try again.", "danger")
-                return redirect(url_for("add_entry"))
+                return db_error_redirect("loading entry for inline edit", e)
 
             if not entry:
                 flash("Entry not found", "danger")
@@ -373,9 +388,7 @@ def add_entry():
                     sort=[("entry_datetime", -1)]
                 )
             except PyMongoError as e:
-                app.logger.error(f"Database error while validating inline edit balance: {e}")
-                flash("Database error occurred. Please try again.", "danger")
-                return redirect(url_for("add_entry"))
+                return db_error_redirect("validating inline edit balance", e)
 
             available_balance = (
                 previous_entry["remaining_balance"]
@@ -409,9 +422,7 @@ def add_entry():
                 )
                 recalculate_bank_balances_from_date(entry["bank_id"], today)
             except PyMongoError as e:
-                app.logger.error(f"Database error while updating entry inline: {e}")
-                flash("Database error occurred. Please try again.", "danger")
-                return redirect(url_for("add_entry"))
+                return db_error_redirect("updating entry inline", e)
 
             if credited > 0:
                 flash(f"Updated: {credited} credited to {entry['bank_name']}", "success")
@@ -533,9 +544,7 @@ def add_entry():
                         return redirect(url_for("add_entry"))
                     recalculate_bank_balances_from_date(bank_id, entry_date)
                 except PyMongoError as e:
-                    app.logger.error(f"Database error while creating entry: {e}")
-                    flash("Database error occurred. Please try again.", "danger")
-                    return redirect(url_for("add_entry"))
+                    return db_error_redirect("creating entry", e)
                 
                 if credited > 0:
                     flash(f"{credited} credited to {bank['name']}", "success")
@@ -554,9 +563,7 @@ def add_entry():
         try:
             edit_entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
         except PyMongoError as e:
-            app.logger.error(f"Database error while loading entry for inline edit mode: {e}")
-            flash("Database error occurred. Please try again.", "danger")
-            return redirect(url_for("add_entry"))
+            return db_error_redirect("loading entry for inline edit mode", e)
 
         if not edit_entry:
             flash("Entry not found", "danger")
@@ -639,9 +646,7 @@ def delete_entry(entry_id):
     try:
         entry = entries_col.find_one({"_id": entry_oid, "shop_identifier": current_shop_identifier()})
     except PyMongoError as e:
-        app.logger.error(f"Database error while loading entry for delete: {e}")
-        flash("Database error occurred. Please try again.", "danger")
-        return redirect(url_for("add_entry"))
+        return db_error_redirect("loading entry for delete", e)
     if not entry:
         return "Entry not found", 404
     today = date.today().isoformat()
@@ -653,9 +658,7 @@ def delete_entry(entry_id):
         entries_col.delete_one({"_id": entry_oid})
         recalculate_bank_balances_from_date(entry["bank_id"], today)
     except PyMongoError as e:
-        app.logger.error(f"Database error while deleting entry: {e}")
-        flash("Database error occurred. Please try again.", "danger")
-        return redirect(url_for("add_entry"))
+        return db_error_redirect("deleting entry", e)
     flash('Entry deleted successfully!', 'success')
     return redirect(url_for("add_entry"))
 
@@ -675,9 +678,11 @@ register_report_routes(
 
 
 # -----------------------------
-# RUN APP 
+# LOCAL RUNNER
+# Use Gunicorn (Procfile) for production deployments.
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="192.168.0.107", port=5000, debug=True) # Home
-    #app.run(host="192.168.0.220", port=5000, debug=True) #jmj
-    #app.run(host="10.238.128.77", port=5000, debug=True) # Realme
+    app.run(
+        host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "5000")),
+    )
