@@ -72,6 +72,28 @@ entries_col = db["daily_entries"]
 shops_col = db["shops"]
 
 try:
+    shops_col.create_index(
+        [("identifier", 1)],
+        name="shop_identifier_idx",
+    )
+    shops_col.create_index(
+        [("email", 1)],
+        sparse=True,
+        name="shop_email_idx",
+    )
+    shops_col.create_index(
+        [("mobile", 1)],
+        sparse=True,
+        name="shop_mobile_idx",
+    )
+    banks_col.create_index(
+        [("shop_identifier", 1)],
+        name="bank_shop_idx",
+    )
+    banks_col.create_index(
+        [("shop_identifier", 1), ("name", 1)],
+        name="bank_shop_name_idx",
+    )
     entries_col.create_index(
         [("shop_identifier", 1), ("date", 1), ("time", 1), ("entry_datetime", 1)],
         name="shop_date_time_entrydt_idx",
@@ -79,6 +101,22 @@ try:
     entries_col.create_index(
         [("shop_identifier", 1), ("bank_id", 1), ("date", 1), ("entry_datetime", -1)],
         name="shop_bank_date_entrydt_idx",
+    )
+    entries_col.create_index(
+        [("shop_identifier", 1), ("date", -1), ("time", -1), ("entry_datetime", -1)],
+        name="shop_date_desc_time_desc_entrydt_desc_idx",
+    )
+    entries_col.create_index(
+        [("shop_identifier", 1), ("date", 1)],
+        name="shop_date_idx",
+    )
+    entries_col.create_index(
+        [("shop_identifier", 1), ("bank_id", 1), ("entry_datetime", 1)],
+        name="shop_bank_entrydt_idx",
+    )
+    entries_col.create_index(
+        [("shop_identifier", 1), ("date", 1), ("bank_name", 1), ("time", 1), ("entry_datetime", 1)],
+        name="shop_date_bank_time_entrydt_idx",
     )
 except PyMongoError as e:
     app.logger.error(f"Database error while creating indexes: {e}")
