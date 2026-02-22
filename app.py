@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from bson.objectid import ObjectId
+import certifi
 
 
 import os
@@ -29,6 +30,13 @@ def require_env(name):
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
+
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 default_app_timezone = "Asia/Kolkata"
@@ -64,14 +72,23 @@ app.config.update(
 # -----------------------------
 # MongoDB URI is required for startup.
 mongo_uri = require_env("MONGO_URI")
-client = MongoClient(mongo_uri)
+client = MongoClient(
+    mongo_uri,
+    tls=True,
+    tlsCAFile=certifi.where(),
+    serverSelectionTimeoutMS=int(os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "15000")),
+    connectTimeoutMS=int(os.getenv("MONGO_CONNECT_TIMEOUT_MS", "10000")),
+    socketTimeoutMS=int(os.getenv("MONGO_SOCKET_TIMEOUT_MS", "20000")),
+    maxPoolSize=int(os.getenv("MONGO_MAX_POOL_SIZE", "50")),
+    minPoolSize=int(os.getenv("MONGO_MIN_POOL_SIZE", "0")),
+)
 db = client.get_database("daily_ledger_db")  
 
 banks_col = db["banks"]
 entries_col = db["daily_entries"]
 shops_col = db["shops"]
 
-try:
+def ensure_indexes():
     shops_col.create_index(
         [("identifier", 1)],
         name="shop_identifier_idx",
@@ -118,8 +135,27 @@ try:
         [("shop_identifier", 1), ("date", 1), ("bank_name", 1), ("time", 1), ("entry_datetime", 1)],
         name="shop_date_bank_time_entrydt_idx",
     )
+
+
+mongo_fail_fast = env_bool("MONGO_FAIL_FAST", default=True)
+auto_create_indexes = env_bool("AUTO_CREATE_INDEXES", default=False)
+
+try:
+    client.admin.command("ping")
 except PyMongoError as e:
-    app.logger.error(f"Database error while creating indexes: {e}")
+    app.logger.error(f"Database connectivity check failed: {e}")
+    if mongo_fail_fast:
+        raise RuntimeError("MongoDB connection check failed at startup") from e
+
+if auto_create_indexes:
+    try:
+        ensure_indexes()
+    except PyMongoError as e:
+        app.logger.error(f"Database error while creating indexes: {e}")
+        if mongo_fail_fast:
+            raise RuntimeError("MongoDB index setup failed at startup") from e
+else:
+    app.logger.info("AUTO_CREATE_INDEXES is disabled; skipping index creation at startup.")
 
 
 # -----------------------------
