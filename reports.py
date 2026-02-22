@@ -25,7 +25,14 @@ def register_report_routes(
     verify_csrf,
     check_password_hash_fn,
     recalculate_bank_balances_from_date,
+    local_now_fn=None,
+    local_today_fn=None,
 ):
+    if local_now_fn is None:
+        local_now_fn = datetime.now
+    if local_today_fn is None:
+        local_today_fn = date.today
+
     # Allowed year range for yearly report inputs.
     report_year_min = 2000
     report_year_max = 2100
@@ -343,7 +350,7 @@ def register_report_routes(
 
         shop = get_current_shop()
         shop_name = (shop or {}).get("name", "Daily Ledger")
-        generated_on = datetime.now().strftime("%d/%m/%Y %H:%M")
+        generated_on = local_now_fn().strftime("%d/%m/%Y %H:%M")
 
         buffer = BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=A4, pageCompression=1)
@@ -737,7 +744,7 @@ def register_report_routes(
     @app.route("/yearly-report")
     def yearly_report():
         report_year = (request.args.get("report_year") or "").strip()
-        selected_year = report_year or str(date.today().year)
+        selected_year = report_year or str(local_today_fn().year)
         searched_year = bool(report_year)
         report = None
         bank_wise = []
@@ -826,7 +833,7 @@ def register_report_routes(
 
     @app.route("/weekly-report")
     def weekly_report():
-        today = date.today()
+        today = local_today_fn()
         monday = today - timedelta(days=today.weekday())
         start_date = monday.isoformat()
         end_date = today.isoformat()

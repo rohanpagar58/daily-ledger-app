@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from bson.objectid import ObjectId
@@ -28,6 +29,24 @@ def require_env(name):
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
+
+
+default_app_timezone = "Asia/Kolkata"
+app_timezone_name = (os.getenv("APP_TIMEZONE") or default_app_timezone).strip() or default_app_timezone
+try:
+    app_timezone = ZoneInfo(app_timezone_name)
+except ZoneInfoNotFoundError:
+    app_timezone = ZoneInfo("UTC")
+    app.logger.warning(f"Invalid APP_TIMEZONE '{app_timezone_name}', falling back to UTC")
+
+
+def local_now():
+    # Keep stored datetimes naive for compatibility with existing records.
+    return datetime.now(app_timezone).replace(tzinfo=None)
+
+
+def local_today():
+    return datetime.now(app_timezone).date()
 
 
 app.secret_key = require_env("SECRET_KEY")
@@ -311,13 +330,13 @@ recalculate_bank_balances_from_date = bank_module["recalculate_bank_balances_fro
 @app.route("/add-entry", methods=["GET", "POST"])
 def add_entry():
     error = None
-    today = date.today().isoformat()
+    today = local_today().isoformat()
     banks = get_shop_banks()
     selected_bank = request.args.get("selected_bank")
     edit_id = (request.args.get("edit_id") or "").strip()
 
     def load_recent_entries():
-        from_date = (date.today() - timedelta(days=6)).isoformat()
+        from_date = (local_today() - timedelta(days=6)).isoformat()
         try:
             return list(
                 entries_col.find({
@@ -408,7 +427,7 @@ def add_entry():
                 return redirect(url_for("add_entry", edit_id=edit_entry_id))
 
             try:
-                updated_at = datetime.now()
+                updated_at = local_now()
                 entries_col.update_one(
                     {"_id": entry_oid},
                     {
@@ -482,7 +501,7 @@ def add_entry():
                         error=error
                     )
 
-                entry_datetime = datetime.now()
+                entry_datetime = local_now()
 
                 try:
                     last_entry = entries_col.find_one(
@@ -649,7 +668,7 @@ def delete_entry(entry_id):
         return db_error_redirect("loading entry for delete", e)
     if not entry:
         return "Entry not found", 404
-    today = date.today().isoformat()
+    today = local_today().isoformat()
 
     if entry["date"] != today:
         return "Deleting past entries is not allowed", 403
@@ -674,6 +693,8 @@ register_report_routes(
     verify_csrf=verify_csrf,
     check_password_hash_fn=check_password_hash,
     recalculate_bank_balances_from_date=recalculate_bank_balances_from_date,
+    local_now_fn=local_now,
+    local_today_fn=local_today,
 )
 
 
