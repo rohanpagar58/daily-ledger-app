@@ -273,23 +273,13 @@ def register_report_routes(
             return None, None
         return start_date, end_date
 
-    def delete_entries_and_recalculate(range_start, range_end, recalc_start_date):
-        # Keep balances consistent by recalculating only affected banks after delete.
+    def delete_entries_preserve_balances(range_start, range_end):
+        # Delete selected period data without recalculating later balances.
         query = {
             "date": {"$gte": range_start, "$lte": range_end},
             "shop_identifier": current_shop_identifier(),
         }
-        affected_bank_ids = entries_col.distinct("bank_id", query)
         delete_result = entries_col.delete_many(query)
-
-        for bank_id in affected_bank_ids:
-            try:
-                recalculate_bank_balances_from_date(bank_id, recalc_start_date)
-            except Exception as recalc_error:
-                current_app.logger.error(
-                    f"Balance recalc failed for bank_id={bank_id}: {recalc_error}"
-                )
-
         return delete_result.deleted_count
 
     def format_amount_for_pdf(value):
@@ -815,10 +805,9 @@ def register_report_routes(
             return redirect(url_for("reports"))
 
         try:
-            deleted_count = delete_entries_and_recalculate(
+            deleted_count = delete_entries_preserve_balances(
                 range_start=range_start,
                 range_end=range_end,
-                recalc_start_date=range_start,
             )
 
             flash(
@@ -877,3 +866,4 @@ def register_report_routes(
             start_date=start_date or None,
             end_date=end_date or None,
         )
+

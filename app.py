@@ -774,7 +774,6 @@ register_report_routes(
 
 # -----------------------------
 # LOCAL RUNNER
-# Use Gunicorn (Procfile) for production deployments.
 # -----------------------------
 if __name__ == "__main__":
     app.run(

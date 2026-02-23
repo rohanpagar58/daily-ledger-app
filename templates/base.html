@@ -96,6 +96,21 @@
             background-color: #f8d7da;
             border-color: #f5c2c7;
         }
+    
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .site-footer {
+            margin-top: auto;
+        }
     </style>
 </head>
 
@@ -187,6 +202,10 @@
             {% block content %}{% endblock %}
         </div>
     </div>
+
+    <footer class="site-footer py-3 border-top bg-white">
+        <div class="container text-center text-muted small">&copy; 2026 Daily Ledger. Built by Rohan Pagar.</div>
+    </footer>
 
     <!-- Calculator Modal -->
     <div class="modal fade" id="calculatorModal" tabindex="-1" aria-labelledby="calculatorModalLabel"
@@ -340,3 +359,4 @@
 </body>
 
 </html>
+
