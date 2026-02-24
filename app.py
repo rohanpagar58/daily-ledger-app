@@ -87,16 +87,23 @@ app.config.update(
 # -----------------------------
 # MongoDB URI is required for startup.
 mongo_uri = require_env("MONGO_URI")
-client = MongoClient(
-    mongo_uri,
-    tls=True,
-    tlsCAFile=certifi.where(),
-    serverSelectionTimeoutMS=int(os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "15000")),
-    connectTimeoutMS=int(os.getenv("MONGO_CONNECT_TIMEOUT_MS", "10000")),
-    socketTimeoutMS=int(os.getenv("MONGO_SOCKET_TIMEOUT_MS", "20000")),
-    maxPoolSize=int(os.getenv("MONGO_MAX_POOL_SIZE", "50")),
-    minPoolSize=int(os.getenv("MONGO_MIN_POOL_SIZE", "0")),
-)
+mongo_client_options = {
+    "serverSelectionTimeoutMS": int(os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "15000")),
+    "connectTimeoutMS": int(os.getenv("MONGO_CONNECT_TIMEOUT_MS", "10000")),
+    "socketTimeoutMS": int(os.getenv("MONGO_SOCKET_TIMEOUT_MS", "20000")),
+    "maxPoolSize": int(os.getenv("MONGO_MAX_POOL_SIZE", "50")),
+    "minPoolSize": int(os.getenv("MONGO_MIN_POOL_SIZE", "0")),
+}
+
+# Keep TLS environment-driven: URI controls it by default.
+# Optional override: set MONGO_TLS=true/false.
+if os.getenv("MONGO_TLS") is not None:
+    mongo_tls_enabled = env_bool("MONGO_TLS", default=False)
+    mongo_client_options["tls"] = mongo_tls_enabled
+    if mongo_tls_enabled:
+        mongo_client_options["tlsCAFile"] = certifi.where()
+
+client = MongoClient(mongo_uri, **mongo_client_options)
 db = client.get_database("daily_ledger_db")  
 
 banks_col = db["banks"]
@@ -851,4 +858,5 @@ if __name__ == "__main__":
     app.run(
         host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "5000")),
+        debug=env_bool("FLASK_DEBUG", default=False),
     )
