@@ -203,11 +203,6 @@ h6 {
 
     #mainNavbar .navbar-mobile-shell {
         margin-top: 1.2rem;
-        border: 1px solid var(--border-color);
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.98);
-        box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.35);
-        overflow: hidden;
     }
 
     #mainNavbar .navbar-nav {
