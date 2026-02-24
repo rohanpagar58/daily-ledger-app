@@ -191,31 +191,6 @@ h6 {
     background-color: rgba(79, 70, 229, 0.05);
 }
 
-@media (max-width: 991.98px) {
-    #mainNavbar {
-        margin-top: 0 !important;
-        will-change: height;
-    }
-
-    #mainNavbar.collapsing {
-        transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    #mainNavbar .navbar-mobile-shell {
-        margin-top: 1.2rem;
-    }
-
-    #mainNavbar .navbar-nav {
-        padding: 0.6rem 0.35rem 0.35rem;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    #mainNavbar.collapsing {
-        transition: none !important;
-    }
-}
-
 /* Tables */
 .table {
     border-collapse: separate;
