@@ -274,7 +274,6 @@ def register_report_routes(
         return start_date, end_date
 
     def delete_entries_preserve_balances(range_start, range_end):
-        # Delete selected period data without recalculating later balances.
         query = {
             "date": {"$gte": range_start, "$lte": range_end},
             "shop_identifier": current_shop_identifier(),
@@ -282,8 +281,7 @@ def register_report_routes(
         delete_result = entries_col.delete_many(query)
         return delete_result.deleted_count
 
-    def format_amount_for_pdf(value):
-        # Format numbers in Indian grouping (e.g., 1,23,456.78) for PDF display.
+    def format_amount_for_pdf(value):   
         try:
             amount = float(value)
         except (TypeError, ValueError):

@@ -9,7 +9,7 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, DuplicateKeyError
 from bson.objectid import ObjectId
 import certifi
 
@@ -44,6 +44,14 @@ def env_bool(name, default=False):
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def normalize_identifier(value):
+    normalized = (value or "").strip()
+    # Treat emails as case-insensitive identifiers.
+    if "@" in normalized:
+        normalized = normalized.lower()
+    return normalized
 
 
 default_app_timezone = "Asia/Kolkata"
@@ -96,8 +104,20 @@ entries_col = db["daily_entries"]
 shops_col = db["shops"]
 
 def ensure_indexes():
+    # Upgrade legacy non-unique identifier index to unique (safe for repeated startups).
+    existing_identifier_index = None
+    for idx in shops_col.list_indexes():
+        key_items = list((idx.get("key") or {}).items())
+        if key_items == [("identifier", 1)]:
+            existing_identifier_index = idx
+            break
+
+    if existing_identifier_index and not existing_identifier_index.get("unique", False):
+        shops_col.drop_index(existing_identifier_index["name"])
+
     shops_col.create_index(
         [("identifier", 1)],
+        unique=True,
         name="shop_identifier_idx",
     )
     shops_col.create_index(
@@ -176,6 +196,9 @@ def current_shop_identifier():
 
 
 def find_shop_by_identifier(identifier):
+    identifier = normalize_identifier(identifier)
+    if not identifier:
+        return None
     try:
         return shops_col.find_one({
             "$or": [
@@ -240,9 +263,9 @@ MOBILE_RE = re.compile(r"^\d{10,15}$")
 
 
 def is_valid_identifier(value):
+    value = normalize_identifier(value)
     if not value:
         return False
-    value = value.strip()
     return bool(EMAIL_RE.match(value) or MOBILE_RE.match(value))
 
 
@@ -299,7 +322,7 @@ def require_login():
     allowed_paths = {"/login", "/signup", "/healthz"}
     if request.path in allowed_paths or request.path.startswith("/static"):
         return None
-    if not session.get("shop_name"):
+    if not session.get("shop_identifier"):
         return redirect(url_for("login"))
 
 
@@ -349,12 +372,12 @@ def home():
 @app.route("/signup", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def signup():
-    if session.get("shop_name"):
+    if session.get("shop_identifier"):
         return redirect(url_for("home"))
     error = None
     if request.method == "POST":
         verify_csrf()
-        identifier = (request.form.get("identifier") or "").strip()
+        identifier = normalize_identifier(request.form.get("identifier"))
         password = request.form.get("password") or ""
         shop_name = (request.form.get("shop_name") or "").strip()
 
@@ -379,6 +402,8 @@ def signup():
                         error = "Failed to create account. Please try again."
                     else:
                         return redirect(url_for("login"))
+                except DuplicateKeyError:
+                    error = "Email or mobile already registered. Please log in."
                 except PyMongoError as e:
                     app.logger.error(f"Database error during signup: {e}")
                     error = "Database error occurred. Please try again."
@@ -389,12 +414,12 @@ def signup():
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
-    if session.get("shop_name"):  
+    if session.get("shop_identifier"):  
         return redirect(url_for("home"))
     error = None
     if request.method == "POST":
         verify_csrf()
-        identifier = (request.form.get("identifier") or "").strip()
+        identifier = normalize_identifier(request.form.get("identifier"))
         password = request.form.get("password") or ""
         if not is_valid_identifier(identifier):
             error = "Enter a valid email or mobile number"
@@ -407,7 +432,13 @@ def login():
             else:
                 session.permanent = True  # Enforce PERMANENT_SESSION_LIFETIME
                 session["shop_name"] = existing.get("name")
-                session["shop_identifier"] = identifier
+                # Always persist canonical identity, not raw user input.
+                session["shop_identifier"] = (
+                    normalize_identifier(existing.get("identifier"))
+                    or normalize_identifier(existing.get("mobile"))
+                    or normalize_identifier(existing.get("email"))
+                    or identifier
+                )
                 return redirect(url_for("home"))
 
     return render_template("login.html", error=error)
