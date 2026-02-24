@@ -1,5 +1,9 @@
 import secrets
+import math
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort, flash
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from datetime import date, datetime, timedelta
@@ -23,6 +27,9 @@ load_dotenv()
 # FLASK INIT
 # -----------------------------
 app = Flask(__name__)
+# Trust one layer of proxy headers (Render's load balancer).
+# This makes get_remote_address() return the real client IP for rate limiting.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 
 def require_env(name):
@@ -138,7 +145,9 @@ def ensure_indexes():
 
 
 mongo_fail_fast = env_bool("MONGO_FAIL_FAST", default=True)
-auto_create_indexes = env_bool("AUTO_CREATE_INDEXES", default=False)
+# Default True so indexes are always created on a fresh deployment.
+# Set AUTO_CREATE_INDEXES=false in .env to skip (e.g., if indexes already exist).
+auto_create_indexes = env_bool("AUTO_CREATE_INDEXES", default=True)
 
 try:
     client.admin.command("ping")
@@ -257,7 +266,12 @@ def parse_non_negative_float(value):
         num = float(value)
     except Exception:
         return None
+    # Reject NaN, Infinity, negative values, or unrealistically large amounts
+    if math.isnan(num) or math.isinf(num):
+        return None
     if num < 0:
+        return None
+    if num > 1_000_000_000:  # 1 billion cap
         return None
     return num
 
@@ -282,7 +296,7 @@ def to_object_id(value):
 # -----------------------------
 @app.before_request
 def require_login():
-    allowed_paths = {"/login", "/signup"}
+    allowed_paths = {"/login", "/signup", "/healthz"}
     if request.path in allowed_paths or request.path.startswith("/static"):
         return None
     if not session.get("shop_name"):
@@ -298,6 +312,30 @@ def add_no_cache_headers(response):
 
 
 # -----------------------------
+# FLASK-LIMITER
+# -----------------------------
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
+
+# -----------------------------
+# HEALTH CHECK
+# -----------------------------
+@app.route("/healthz")
+def healthz():
+    """Health check endpoint for Render / load balancers."""
+    try:
+        client.admin.command("ping")
+        return jsonify({"status": "ok", "db": "connected"}), 200
+    except PyMongoError:
+        return jsonify({"status": "error", "db": "unreachable"}), 503
+
+
+# -----------------------------
 # HOME
 # -----------------------------
 @app.route("/")
@@ -309,6 +347,7 @@ def home():
 # AUTH (SIMPLE SHOP LOGIN)
 # -----------------------------
 @app.route("/signup", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def signup():
     if session.get("shop_name"):
         return redirect(url_for("home"))
@@ -348,6 +387,7 @@ def signup():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     if session.get("shop_name"):  
         return redirect(url_for("home"))
@@ -365,6 +405,7 @@ def login():
             if not existing or not check_password_hash(existing.get("password_hash", ""), password):
                 error = "Invalid email/mobile or password"
             else:
+                session.permanent = True  # Enforce PERMANENT_SESSION_LIFETIME
                 session["shop_name"] = existing.get("name")
                 session["shop_identifier"] = identifier
                 return redirect(url_for("home"))

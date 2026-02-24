@@ -40,9 +40,11 @@ A simple Flask application to track daily credited and debited amounts for diffe
 2.  Create a new **Web Service** on [Render](https://render.com/).
 3.  Connect your GitHub repository.
 4.  Render will automatically detect the `Procfile` and `requirements.txt`.
-5.  **Environment Variables**:
-    -   Add `MONGO_URI`: Paste your Atlas connection string here.
-    -   Add `SECRET_KEY`: Generate a random secure string.
+5.  **Environment Variables** (set in Render dashboard):
+    -   `MONGO_URI`: Paste your Atlas connection string here.
+    -   `SECRET_KEY`: Generate a random secure string (e.g. `python -c "import secrets; print(secrets.token_hex(32))"`).
+    -   `SESSION_COOKIE_SECURE=true`: **Required** — ensures session cookies are only sent over HTTPS.
+    -   `APP_TIMEZONE=Asia/Kolkata`: Optional (defaults to `Asia/Kolkata`).
 6.  Click **Deploy**.
 
 ## Project Structure
