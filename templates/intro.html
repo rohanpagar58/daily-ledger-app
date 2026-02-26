@@ -137,100 +137,16 @@
         font-size: 0.93rem;
     }
 
-    .intro-visual-wrap {
-        padding: 14px 14px 10px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, #bfded8 0%, #acd6cd 100%);
-        box-shadow: 0 26px 42px -34px rgba(15, 23, 42, 0.7);
-    }
+
 
     .intro-laptop {
-        width: min(500px, 100%);
+        width: 100%;
+        max-width: 680px;
         margin: 0 auto;
-    }
-
-    .intro-laptop-screen {
-        border: 1px solid #b8c4cf;
-        border-radius: 9px 9px 5px 5px;
-        background: #fff;
-        box-shadow: inset 0 0 0 1px #edf2f8, 0 18px 30px -30px rgba(15, 23, 42, 0.92);
-        overflow: hidden;
-        aspect-ratio: 16 / 10;
-    }
-
-    .intro-browser-top {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        height: 22px;
-        padding: 0 10px;
-        background: #f8fafc;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .intro-browser-top span {
-        width: 6px;
-        height: 6px;
-        border-radius: 999px;
-        background: #cbd5e1;
-    }
-
-    .intro-browser-body {
-        padding: 10px 12px 12px;
-    }
-
-    .intro-browser-line {
-        height: 7px;
-        border-radius: 999px;
-        background: #edf2f7;
-        margin-bottom: 8px;
-    }
-
-    .intro-browser-line.intro-browser-line-wide {
-        width: 74%;
-        background: #dce8ff;
-    }
-
-    .intro-browser-table-row {
-        display: grid;
-        grid-template-columns: 1.8fr repeat(3, minmax(0, 1fr));
-        gap: 8px;
-        margin-top: 9px;
-    }
-
-    .intro-browser-table-row span {
         display: block;
-        height: 6px;
-        border-radius: 999px;
-        background: #edf2f7;
+        height: auto;
     }
 
-    .intro-browser-table-row.intro-browser-head span {
-        background: #d9e7ff;
-    }
-
-    .intro-laptop-base {
-        position: relative;
-        width: min(520px, 104%);
-        height: 15px;
-        margin: 0 auto;
-        transform: translateY(-1px);
-        border-radius: 0 0 12px 12px;
-        background: linear-gradient(180deg, #f4f6f8 0%, #aab4c0 100%);
-        box-shadow: 0 12px 14px -14px rgba(15, 23, 42, 0.85);
-    }
-
-    .intro-laptop-base::after {
-        content: "";
-        position: absolute;
-        left: 50%;
-        bottom: 3px;
-        width: 74px;
-        height: 3px;
-        transform: translateX(-50%);
-        border-radius: 999px;
-        background: rgba(75, 85, 99, 0.35);
-    }
 
     .intro-why {
         padding: 70px 0 74px;
@@ -491,17 +407,11 @@
             gap: 56px;
         }
 
-        .intro-visual-wrap {
-            max-width: 540px;
-            margin-left: auto;
-        }
+
 
         .intro-laptop {
-            width: min(500px, 98%);
-        }
-
-        .intro-laptop-base {
-            width: min(520px, 102%);
+            width: 100%;
+            max-width: 680px;
         }
     }
 
@@ -645,33 +555,8 @@
                 </div>
 
                 <div>
-                    <div class="intro-visual-wrap">
-                        <div class="intro-laptop">
-                            <div class="intro-laptop-screen">
-                                <div class="intro-browser-top">
-                                    <span></span><span></span><span></span>
-                                </div>
-                                <div class="intro-browser-body">
-                                    <div class="intro-browser-line intro-browser-line-wide"></div>
-                                    <div class="intro-browser-line" style="width: 100%;"></div>
-                                    <div class="intro-browser-line" style="width: 92%;"></div>
-                                    <div class="intro-browser-table-row intro-browser-head">
-                                        <span></span><span></span><span></span><span></span>
-                                    </div>
-                                    <div class="intro-browser-table-row">
-                                        <span></span><span></span><span></span><span></span>
-                                    </div>
-                                    <div class="intro-browser-table-row">
-                                        <span></span><span></span><span></span><span></span>
-                                    </div>
-                                    <div class="intro-browser-table-row">
-                                        <span></span><span></span><span></span><span></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="intro-laptop-base"></div>
-                        </div>
-                    </div>
+                    <img src="{{ url_for('static', filename='images/Laptop.png') }}" alt="Daily Ledger Application"
+                        class="intro-laptop">
 
                     <div class="intro-actions intro-actions-mobile">
                         <button type="button" class="intro-btn-primary" data-bs-toggle="modal"
