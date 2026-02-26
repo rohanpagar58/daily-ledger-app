@@ -201,14 +201,12 @@ h6 {
         transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    #mainNavbar .navbar-mobile-shell {
-        margin-top: 1.2rem;
-    }
-
     #mainNavbar .navbar-nav {
         padding: 0.6rem 0.35rem 0.35rem;
     }
 }
+
+
 
 @media (prefers-reduced-motion: reduce) {
     #mainNavbar.collapsing {
@@ -258,7 +256,7 @@ h6 {
     vertical-align: middle;
 }
 
-.recent-entries-table > thead > tr > th {
+.recent-entries-table>thead>tr>th {
     background-color: #fff;
     box-shadow: none;
     border-bottom: 1px solid #6b7280;
@@ -940,7 +938,7 @@ button.btn-action-icon.open-delete-bank-modal:focus-visible {
         padding: 0.42rem 0.4rem;
     }
 
-    .reports-mobile-delete .reports-delete-segment .btn-check:checked + .btn {
+    .reports-mobile-delete .reports-delete-segment .btn-check:checked+.btn {
         background: #fff;
         color: #2563eb;
         box-shadow: 0 2px 6px rgba(148, 163, 184, 0.26);
@@ -1376,13 +1374,13 @@ body.app-shell .card-body.text-center p.text-muted {
         box-shadow: 0 18px 45px -30px rgba(15, 23, 42, 0.36);
     }
 
-    body.app-shell .page-content-shell > h4,
-    body.app-shell .page-content-shell > h1,
-    body.app-shell .page-content-shell > h2 {
+    body.app-shell .page-content-shell>h4,
+    body.app-shell .page-content-shell>h1,
+    body.app-shell .page-content-shell>h2 {
         margin-bottom: 0.7rem;
     }
 
-    body.app-shell .page-content-shell > form.mb-4 {
+    body.app-shell .page-content-shell>form.mb-4 {
         background: #f8faff;
         border: 1px solid #e4eaf5;
         border-radius: 16px;
@@ -1898,7 +1896,7 @@ body.app-shell .card-body.text-center p.text-muted {
         padding: 0.45rem 0.4rem;
     }
 
-    .reports-delete-segment .btn-check:checked + .btn {
+    .reports-delete-segment .btn-check:checked+.btn {
         background: #fff;
         color: #2563eb;
         box-shadow: 0 2px 6px rgba(148, 163, 184, 0.26);

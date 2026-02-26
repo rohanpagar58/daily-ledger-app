@@ -326,11 +326,11 @@ def to_object_id(value):
 # -----------------------------
 @app.before_request
 def require_login():
-    allowed_paths = {"/login", "/signup", "/healthz"}
+    allowed_paths = {"/intro", "/login", "/signup", "/healthz"}
     if request.path in allowed_paths or request.path.startswith("/static"):
         return None
     if not session.get("shop_identifier"):
-        return redirect(url_for("login"))
+        return redirect(url_for("intro"))
 
 
 @app.after_request
@@ -376,12 +376,35 @@ def home():
 # -----------------------------
 # AUTH (SIMPLE SHOP LOGIN)
 # -----------------------------
+@app.route("/intro")
+def intro():
+    if session.get("shop_identifier"):
+        return redirect(url_for("home"))
+    modal = (request.args.get("modal") or "").strip().lower()
+    if modal not in {"login", "signup"}:
+        modal = None
+    return render_template(
+        "intro.html",
+        open_modal=modal,
+        login_error=None,
+        signup_error=None,
+        login_identifier="",
+        signup_identifier="",
+        signup_shop_name="",
+    )
+
+
 @app.route("/signup", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def signup():
     if session.get("shop_identifier"):
         return redirect(url_for("home"))
+    if request.method == "GET":
+        return redirect(url_for("intro", modal="signup"))
+
     error = None
+    identifier = ""
+    shop_name = ""
     if request.method == "POST":
         verify_csrf()
         identifier = normalize_identifier(request.form.get("identifier"))
@@ -408,14 +431,23 @@ def signup():
                     if not result.inserted_id:
                         error = "Failed to create account. Please try again."
                     else:
-                        return redirect(url_for("login"))
+                        flash("Account created successfully. Please log in.", "success")
+                        return redirect(url_for("intro", modal="login"))
                 except DuplicateKeyError:
                     error = "Email or mobile already registered. Please log in."
                 except PyMongoError as e:
                     app.logger.error(f"Database error during signup: {e}")
                     error = "Database error occurred. Please try again."
 
-    return render_template("signup.html", error=error)
+    return render_template(
+        "intro.html",
+        open_modal="signup",
+        signup_error=error,
+        signup_identifier=identifier or "",
+        signup_shop_name=shop_name,
+        login_error=None,
+        login_identifier="",
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -423,7 +455,11 @@ def signup():
 def login():
     if session.get("shop_identifier"):  
         return redirect(url_for("home"))
+    if request.method == "GET":
+        return redirect(url_for("intro", modal="login"))
+
     error = None
+    identifier = ""
     if request.method == "POST":
         verify_csrf()
         identifier = normalize_identifier(request.form.get("identifier"))
@@ -448,7 +484,15 @@ def login():
                 )
                 return redirect(url_for("home"))
 
-    return render_template("login.html", error=error)
+    return render_template(
+        "intro.html",
+        open_modal="login",
+        login_error=error,
+        login_identifier=identifier or "",
+        signup_error=None,
+        signup_identifier="",
+        signup_shop_name="",
+    )
 
 
 @app.route("/logout", methods=["POST"])
@@ -857,7 +901,7 @@ register_report_routes(
 if __name__ == "__main__":
     app.run(
         #host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
-        host=os.getenv("FLASK_RUN_HOST", "192.168.0.220"),
+        host=os.getenv("FLASK_RUN_HOST", "192.168.0.106"),
         port=int(os.getenv("PORT", "5000")),
-        debug=env_bool("FLASK_DEBUG", default=False),
+        debug=env_bool("FLASK_DEBUG", default=True),
     )

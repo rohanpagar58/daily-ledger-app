@@ -1,0 +1,918 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - Daily Ledger{% endblock %}
+
+{% block extra_css %}
+<style>
+    .intro-page {
+        background: #f7f8fb;
+        color: #0f172a;
+    }
+
+    .intro-page .page-content-shell {
+        padding: 0 !important;
+    }
+
+    .intro-landing {
+        width: 100%;
+        overflow-x: clip;
+    }
+
+    .intro-wrap {
+        width: min(1160px, calc(100% - 32px));
+        margin: 0 auto;
+    }
+
+    .intro-hero {
+        padding: 72px 0 66px;
+        background: #f7f8fb;
+    }
+
+    .intro-hero-grid {
+        display: grid;
+        gap: 34px;
+    }
+
+    .intro-title {
+        margin: 0;
+        font-size: clamp(2.25rem, 5vw, 4.1rem);
+        line-height: 1.14;
+        letter-spacing: -0.03em;
+        color: #0b1328;
+    }
+
+    .intro-title .intro-accent {
+        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 58%, #3b82f6 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .intro-subtitle {
+        margin: 14px 0 24px;
+        max-width: 560px;
+        font-size: 1.1rem;
+        line-height: 1.65;
+        color: #475569;
+    }
+
+    .intro-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .intro-actions-mobile {
+        display: none;
+    }
+
+    .intro-btn-primary,
+    .intro-btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 170px;
+        padding: 11px 20px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 700;
+        border: 0;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .intro-btn-primary {
+        color: #fff;
+        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%);
+        box-shadow: 0 14px 24px -18px rgba(37, 99, 235, 0.92);
+    }
+
+    .intro-btn-secondary {
+        color: #1d4ed8;
+        background: #e7efff;
+        border: 1px solid #d4e2ff;
+    }
+
+    .intro-btn-primary:hover,
+    .intro-btn-secondary:hover {
+        transform: translateY(-1px);
+    }
+
+    .intro-auth-modal .modal-content {
+        border: 0;
+        border-radius: 16px;
+        box-shadow: 0 26px 40px -30px rgba(15, 23, 42, 0.55);
+    }
+
+    .intro-auth-modal .modal-header {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 1rem 1.1rem;
+    }
+
+    .intro-auth-modal .modal-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .intro-auth-modal .modal-body {
+        padding: 1.1rem;
+    }
+
+    .intro-auth-modal .form-label {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.9rem;
+    }
+
+    .intro-auth-switch {
+        margin-top: 0.9rem;
+        text-align: center;
+    }
+
+    .intro-auth-switch .btn-link {
+        color: #2563eb;
+        text-decoration: none;
+        font-size: 0.93rem;
+    }
+
+    .intro-visual-wrap {
+        padding: 14px 14px 10px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #bfded8 0%, #acd6cd 100%);
+        box-shadow: 0 26px 42px -34px rgba(15, 23, 42, 0.7);
+    }
+
+    .intro-laptop {
+        width: min(500px, 100%);
+        margin: 0 auto;
+    }
+
+    .intro-laptop-screen {
+        border: 1px solid #b8c4cf;
+        border-radius: 9px 9px 5px 5px;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #edf2f8, 0 18px 30px -30px rgba(15, 23, 42, 0.92);
+        overflow: hidden;
+        aspect-ratio: 16 / 10;
+    }
+
+    .intro-browser-top {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 22px;
+        padding: 0 10px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .intro-browser-top span {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #cbd5e1;
+    }
+
+    .intro-browser-body {
+        padding: 10px 12px 12px;
+    }
+
+    .intro-browser-line {
+        height: 7px;
+        border-radius: 999px;
+        background: #edf2f7;
+        margin-bottom: 8px;
+    }
+
+    .intro-browser-line.intro-browser-line-wide {
+        width: 74%;
+        background: #dce8ff;
+    }
+
+    .intro-browser-table-row {
+        display: grid;
+        grid-template-columns: 1.8fr repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 9px;
+    }
+
+    .intro-browser-table-row span {
+        display: block;
+        height: 6px;
+        border-radius: 999px;
+        background: #edf2f7;
+    }
+
+    .intro-browser-table-row.intro-browser-head span {
+        background: #d9e7ff;
+    }
+
+    .intro-laptop-base {
+        position: relative;
+        width: min(520px, 104%);
+        height: 15px;
+        margin: 0 auto;
+        transform: translateY(-1px);
+        border-radius: 0 0 12px 12px;
+        background: linear-gradient(180deg, #f4f6f8 0%, #aab4c0 100%);
+        box-shadow: 0 12px 14px -14px rgba(15, 23, 42, 0.85);
+    }
+
+    .intro-laptop-base::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 3px;
+        width: 74px;
+        height: 3px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: rgba(75, 85, 99, 0.35);
+    }
+
+    .intro-why {
+        padding: 70px 0 74px;
+        background: #e9eff6;
+    }
+
+    .intro-section-title {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(1.95rem, 3.6vw, 3rem);
+        color: #0b1328;
+    }
+
+    .intro-section-subtitle {
+        margin: 12px 0 0;
+        text-align: center;
+        font-size: 1.05rem;
+        color: #64748b;
+    }
+
+    .intro-feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 42px;
+    }
+
+    .intro-feature-card {
+        padding: 22px 18px 18px;
+        border-radius: 14px;
+        border: 1px solid #dce4ee;
+        background: #f8fafc;
+        height: 100%;
+    }
+
+    .intro-feature-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 14px;
+        border-radius: 10px;
+        background: #e5eeff;
+        color: #2563eb;
+        font-size: 1rem;
+    }
+
+    .intro-feature-title {
+        margin: 0 0 8px;
+        font-size: 1.2rem;
+        line-height: 1.35;
+        color: #0f172a;
+    }
+
+    .intro-feature-text {
+        margin: 0;
+        font-size: 0.94rem;
+        line-height: 1.55;
+        color: #64748b;
+    }
+
+    .intro-mission {
+        padding: 72px 0 34px;
+        background: #f7f8fb;
+    }
+
+    .intro-mission-badge {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        margin: 0 auto 18px;
+        padding: 8px 15px;
+        border-radius: 999px;
+        background: #e7eefc;
+        color: #2563eb;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .intro-mission-title {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(2rem, 4.2vw, 3.6rem);
+        line-height: 1.12;
+        color: #0b1328;
+    }
+
+    .intro-mission-divider {
+        width: 80px;
+        height: 4px;
+        margin: 18px auto 28px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+    }
+
+    .intro-mission-quote {
+        margin: 0 auto;
+        max-width: 880px;
+        text-align: center;
+        font-size: 1.08rem;
+        line-height: 1.68;
+        font-style: italic;
+        color: #4b5563;
+    }
+
+    .intro-mission-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+        margin-top: 48px;
+    }
+
+    .intro-mission-item-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 10px;
+        font-size: 1.24rem;
+        color: #111827;
+    }
+
+    .intro-mission-item-title i {
+        color: #2563eb;
+        font-size: 1rem;
+    }
+
+    .intro-mission-item-text {
+        margin: 0;
+        font-size: 0.98rem;
+        line-height: 1.6;
+        color: #6b7280;
+    }
+
+    .intro-cta {
+        margin-top: 56px;
+        border-radius: 24px;
+        padding: 38px 40px;
+        color: #fff;
+        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 58%, #3b82f6 100%);
+        box-shadow: 0 28px 40px -34px rgba(37, 99, 235, 0.82);
+    }
+
+    .intro-cta-grid {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .intro-cta h3 {
+        margin: 0 0 8px;
+        font-size: clamp(1.75rem, 3.4vw, 2.9rem);
+        color: #fff;
+    }
+
+    .intro-cta p {
+        margin: 0;
+        font-size: 1.04rem;
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .intro-cta-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 210px;
+        padding: 14px 22px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: #1d4ed8;
+        background: #fff;
+        box-shadow: 0 20px 32px -26px rgba(2, 6, 23, 0.88);
+    }
+
+    .intro-footer {
+        margin-top: 62px;
+        padding: 34px 0 14px;
+        border-top: 1px solid #dbe5ef;
+        background: #e5ecf4;
+    }
+
+    .intro-brand-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        max-width: 430px;
+        margin: 0 auto 24px;
+    }
+
+    .intro-brand-logo {
+        width: min(240px, 100%);
+        height: auto;
+        margin-bottom: 12px;
+    }
+
+    .intro-brand-text {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.58;
+        color: #64748b;
+    }
+
+    .intro-footer-links-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 22px;
+    }
+
+    .intro-footer-col-title {
+        margin: 0 0 10px;
+        font-size: 1rem;
+        color: #0f172a;
+    }
+
+    .intro-footer-links {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .intro-footer-links li+li {
+        margin-top: 7px;
+    }
+
+    .intro-footer-links a {
+        text-decoration: none;
+        color: #64748b;
+        font-size: 0.92rem;
+    }
+
+    .intro-footer-links a.active-link,
+    .intro-footer-links a:hover {
+        color: #2563eb;
+    }
+
+    .intro-footer-bottom {
+        margin-top: 18px;
+        padding-top: 12px;
+        border-top: 1px solid #d6e0ea;
+        text-align: center;
+        font-size: 0.84rem;
+        color: #94a3b8;
+    }
+
+    @media (min-width: 992px) {
+        .intro-wrap {
+            width: min(1160px, calc(100% - 72px));
+        }
+
+        .intro-hero-grid {
+            grid-template-columns: 1.05fr 1fr;
+            gap: 56px;
+        }
+
+        .intro-visual-wrap {
+            max-width: 540px;
+            margin-left: auto;
+        }
+
+        .intro-laptop {
+            width: min(500px, 98%);
+        }
+
+        .intro-laptop-base {
+            width: min(520px, 102%);
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .intro-wrap {
+            width: min(880px, calc(100% - 30px));
+        }
+
+        .intro-hero {
+            padding: 56px 0 54px;
+        }
+
+        .intro-hero-grid,
+        .intro-mission-grid,
+        .intro-cta-grid,
+        .intro-footer-links-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .intro-hero-grid {
+            gap: 14px;
+        }
+
+        .intro-subtitle {
+            margin-bottom: 8px;
+        }
+
+        .intro-actions-desktop {
+            display: none;
+        }
+
+        .intro-actions-mobile {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .intro-actions-mobile .intro-btn-primary,
+        .intro-actions-mobile .intro-btn-secondary {
+            min-width: 0;
+            flex: 1 1 0;
+        }
+
+        .intro-feature-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .intro-cta {
+            padding: 32px 26px;
+        }
+
+        .intro-cta-btn {
+            min-width: 190px;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .intro-wrap {
+            width: calc(100% - 20px);
+        }
+
+        .intro-hero {
+            padding: 34px 0 46px;
+        }
+
+        .intro-title {
+            line-height: 1.12;
+        }
+
+        .intro-subtitle {
+            margin: 14px 0 8px;
+            font-size: 1.01rem;
+        }
+
+        .intro-actions-mobile {
+            gap: 8px;
+        }
+
+        .intro-actions-mobile .intro-btn-primary,
+        .intro-actions-mobile .intro-btn-secondary {
+            padding: 10px 8px;
+            font-size: 0.82rem;
+        }
+
+        .intro-feature-grid {
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .intro-feature-card {
+            padding: 14px 12px 12px;
+            border-radius: 12px;
+        }
+
+        .intro-feature-icon {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .intro-feature-title {
+            font-size: 0.98rem;
+            margin-bottom: 6px;
+        }
+
+        .intro-feature-text {
+            font-size: 0.8rem;
+            line-height: 1.45;
+        }
+
+        .intro-mission-quote {
+            font-size: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="intro-landing">
+    <section class="intro-hero">
+        <div class="intro-wrap">
+            <div class="intro-hero-grid">
+                <div>
+                    <h1 class="intro-title">
+                        Track Your<br>
+                        Finances with<br>
+                        <span class="intro-accent">Daily Ledger</span>
+                    </h1>
+                    <p class="intro-subtitle">
+                        Effortlessly track credits, debits, and manage multiple bank accounts in one secure place.
+                        Designed for small shops and individuals to simplify financial bookkeeping.
+                    </p>
+                    <div class="intro-actions intro-actions-desktop">
+                        <button type="button" class="intro-btn-primary" data-bs-toggle="modal"
+                            data-bs-target="#loginModal">Get Started Free</button>
+                        <a href="#" class="intro-btn-secondary">Watch Demo</a>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="intro-visual-wrap">
+                        <div class="intro-laptop">
+                            <div class="intro-laptop-screen">
+                                <div class="intro-browser-top">
+                                    <span></span><span></span><span></span>
+                                </div>
+                                <div class="intro-browser-body">
+                                    <div class="intro-browser-line intro-browser-line-wide"></div>
+                                    <div class="intro-browser-line" style="width: 100%;"></div>
+                                    <div class="intro-browser-line" style="width: 92%;"></div>
+                                    <div class="intro-browser-table-row intro-browser-head">
+                                        <span></span><span></span><span></span><span></span>
+                                    </div>
+                                    <div class="intro-browser-table-row">
+                                        <span></span><span></span><span></span><span></span>
+                                    </div>
+                                    <div class="intro-browser-table-row">
+                                        <span></span><span></span><span></span><span></span>
+                                    </div>
+                                    <div class="intro-browser-table-row">
+                                        <span></span><span></span><span></span><span></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="intro-laptop-base"></div>
+                        </div>
+                    </div>
+
+                    <div class="intro-actions intro-actions-mobile">
+                        <button type="button" class="intro-btn-primary" data-bs-toggle="modal"
+                            data-bs-target="#loginModal">Get Started Free</button>
+                        <a href="#" class="intro-btn-secondary">Watch Demo</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="intro-why">
+        <div class="intro-wrap">
+            <h2 class="intro-section-title">Why Choose Daily Ledger?</h2>
+            <p class="intro-section-subtitle">Everything you need to manage your money with confidence.</p>
+
+            <div class="intro-feature-grid">
+                <article class="intro-feature-card">
+                    <div class="intro-feature-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+                    <h3 class="intro-feature-title">Real-time Entry Tracking</h3>
+                    <p class="intro-feature-text">
+                        Record every transaction instantly as it happens, ensuring your books are always up to date.
+                    </p>
+                </article>
+                <article class="intro-feature-card">
+                    <div class="intro-feature-icon"><i class="bi bi-bank2" aria-hidden="true"></i></div>
+                    <h3 class="intro-feature-title">Multi-bank Management</h3>
+                    <p class="intro-feature-text">
+                        Sync and manage all your bank accounts in a single, unified dashboard for total control.
+                    </p>
+                </article>
+                <article class="intro-feature-card">
+                    <div class="intro-feature-icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></div>
+                    <h3 class="intro-feature-title">Comprehensive Reports</h3>
+                    <p class="intro-feature-text">
+                        Generate detailed insights into your spending and earnings with beautiful visual data.
+                    </p>
+                </article>
+                <article class="intro-feature-card">
+                    <div class="intro-feature-icon"><i class="bi bi-calculator" aria-hidden="true"></i></div>
+                    <h3 class="intro-feature-title">Financial Calculator</h3>
+                    <p class="intro-feature-text">
+                        Perform complex financial calculations and projections within the app.
+                    </p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="intro-mission">
+        <div class="intro-wrap">
+            <p class="intro-mission-badge"><i class="bi bi-record-circle-fill" aria-hidden="true"></i> Our Mission</p>
+            <h2 class="intro-mission-title">Empowering Small Businesses</h2>
+            <div class="intro-mission-divider"></div>
+            <p class="intro-mission-quote">
+                "Daily Ledger was born from a simple mission: to simplify financial bookkeeping. We believe that
+                managing money should be a pathway to growth and organization."
+            </p>
+
+            <div class="intro-mission-grid">
+                <article>
+                    <h3 class="intro-mission-item-title"><i class="bi bi-shield-fill-check" aria-hidden="true"></i>
+                        Secure by Design</h3>
+                    <p class="intro-mission-item-text">
+                        Your financial data is encrypted and protected with enterprise-grade security protocols,
+                        ensuring your business stays private.
+                    </p>
+                </article>
+                <article>
+                    <h3 class="intro-mission-item-title"><i class="bi bi-people-fill" aria-hidden="true"></i> Community
+                        Driven</h3>
+                    <p class="intro-mission-item-text">
+                        Built based on feedback from real shop owners and freelancers to ensure every feature solves a
+                        real-world problem.
+                    </p>
+                </article>
+            </div>
+
+            <div class="intro-cta">
+                <div class="intro-cta-grid">
+                    <div>
+                        <h3>Ready to take control?</h3>
+                        <p>Join thousands of businesses already growing with Daily Ledger.</p>
+                    </div>
+                    <button type="button" class="intro-cta-btn" data-bs-toggle="modal" data-bs-target="#loginModal">Get
+                        Started Now</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="intro-footer">
+        <div class="intro-wrap">
+            <div class="intro-brand-block">
+                <img src="{{ url_for('static', filename='images/Daily_ledger_widename.svg') }}" alt="Daily Ledger"
+                    class="intro-brand-logo">
+                <p class="intro-brand-text">
+                    The most reliable financial companion for small businesses and individuals worldwide.
+                </p>
+            </div>
+
+            <div class="intro-footer-bottom">&copy; 2026 Daily Ledger. Built by Rohan Pagar.</div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div class="modal fade intro-auth-modal" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
+                <div class="modal-header border-0 p-4 pb-0">
+                    <h5 class="modal-title fw-bold fs-2" id="loginModalLabel">Login</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 pt-2">
+                    {% if login_error %}
+                    <div class="alert alert-danger py-2 small mb-3" role="alert">
+                        {{ login_error }}
+                    </div>
+                    {% endif %}
+
+                    <form action="{{ url_for('login') }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-4">
+                            <label class="form-label fs-5 fw-semibold">Email or Mobile</label>
+                            <input type="text" name="identifier" class="form-control form-control-lg"
+                                value="{{ login_identifier }}" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fs-5 fw-semibold">Password</label>
+                            <div class="position-relative">
+                                <input type="password" name="password" id="loginModalPassword"
+                                    class="form-control form-control-lg pe-5" required>
+                                <button
+                                    class="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-3 p-0 border-0 shadow-none"
+                                    type="button" id="toggleLoginModalPassword" aria-label="Show password">
+                                    <i class="bi bi-eye fs-4" id="toggleLoginModalPasswordIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 py-3 fw-bold fs-5">Login</button>
+                    </form>
+                    <div class="intro-auth-switch mt-4 text-center">
+                        <span class="fs-6 text-muted">Don't have an account?</span>
+                        <button type="button" class="btn btn-link py-0 fw-semibold fs-6 text-decoration-none"
+                            data-bs-toggle="modal" data-bs-target="#signupModal">Sign Up</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div class="modal fade intro-auth-modal" id="signupModal" tabindex="-1" aria-labelledby="signupModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
+                <div class="modal-header border-0 p-4 pb-0">
+                    <h5 class="modal-title fw-bold fs-2" id="signupModalLabel">Sign Up</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 pt-2">
+                    {% if signup_error %}
+                    <div class="alert alert-danger py-2 small mb-3" role="alert">
+                        {{ signup_error }}
+                    </div>
+                    {% endif %}
+
+                    <form action="{{ url_for('signup') }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-4">
+                            <label class="form-label fs-5 fw-semibold">Shop Name</label>
+                            <input type="text" name="shop_name" class="form-control form-control-lg"
+                                value="{{ signup_shop_name }}" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fs-5 fw-semibold">Email or Mobile</label>
+                            <input type="text" name="identifier" class="form-control form-control-lg"
+                                value="{{ signup_identifier }}" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fs-5 fw-semibold">Password</label>
+                            <div class="position-relative">
+                                <input type="password" name="password" id="signupModalPassword"
+                                    class="form-control form-control-lg pe-5" required>
+                                <button
+                                    class="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-3 p-0 border-0 shadow-none"
+                                    type="button" id="toggleSignupModalPassword" aria-label="Show password">
+                                    <i class="bi bi-eye fs-4" id="toggleSignupModalPasswordIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 py-3 fw-bold fs-5">Create
+                            Account</button>
+                    </form>
+                    <div class="intro-auth-switch mt-4 text-center">
+                        <span class="fs-6 text-muted">Already have an account?</span>
+                        <button type="button" class="btn btn-link py-0 fw-semibold fs-6 text-decoration-none"
+                            data-bs-toggle="modal" data-bs-target="#loginModal">Login</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Handle password visibility for Modals
+        function setupPasswordToggle(inputId, toggleBtnId, iconId) {
+            const passwordInput = document.getElementById(inputId);
+            const toggleButton = document.getElementById(toggleBtnId);
+            const toggleIcon = document.getElementById(iconId);
+
+            if (passwordInput && toggleButton && toggleIcon) {
+                toggleButton.addEventListener("click", function () {
+                    const isPassword = passwordInput.type === "password";
+                    passwordInput.type = isPassword ? "text" : "password";
+                    toggleIcon.classList.toggle("bi-eye", !isPassword);
+                    toggleIcon.classList.toggle("bi-eye-slash", isPassword);
+                    toggleButton.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+                });
+            }
+        }
+
+        setupPasswordToggle("loginModalPassword", "toggleLoginModalPassword", "toggleLoginModalPasswordIcon");
+        setupPasswordToggle("signupModalPassword", "toggleSignupModalPassword", "toggleSignupModalPasswordIcon");
+
+        // Logic to open modal on page load if redirecting with 'open_modal'
+        {% if open_modal %}
+        let modalToOpen = "{{ open_modal }}";
+        if (modalToOpen === "login") {
+            let myModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            myModal.show();
+        } else if (modalToOpen === "signup") {
+            let myModal = new bootstrap.Modal(document.getElementById('signupModal'));
+            myModal.show();
+        }
+        {% endif %}
+    });
+</script>
+{% endblock %}
