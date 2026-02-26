@@ -900,8 +900,7 @@ register_report_routes(
 # -----------------------------
 if __name__ == "__main__":
     app.run(
-        #host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
-        host=os.getenv("FLASK_RUN_HOST", "192.168.0.106"),
+        host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "5000")),
-        debug=env_bool("FLASK_DEBUG", default=True),
+        debug=env_bool("FLASK_DEBUG", default=False),
     )
