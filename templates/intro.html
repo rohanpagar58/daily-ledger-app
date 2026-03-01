@@ -529,6 +529,40 @@
             font-size: 1rem;
         }
     }
+
+    /* Video Modal Styles */
+    .video-container {
+        position: relative;
+        padding-bottom: 56.25%;
+        /* 16:9 Aspect Ratio */
+        height: 0;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #000;
+    }
+
+    .video-container iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+    }
+
+    #demoVideoModal .modal-content {
+        background-color: transparent;
+        border: none;
+    }
+
+    #demoVideoModal .btn-close {
+        background-color: #fff;
+        opacity: 0.8;
+        padding: 0.5rem;
+        border-radius: 50%;
+        margin-bottom: 10px;
+        margin-left: auto;
+    }
 </style>
 {% endblock %}
 
@@ -550,7 +584,8 @@
                     <div class="intro-actions intro-actions-desktop">
                         <button type="button" class="intro-btn-primary" data-bs-toggle="modal"
                             data-bs-target="#loginModal">Get Started Free</button>
-                        <a href="#" class="intro-btn-secondary">Watch Demo</a>
+                        <button type="button" class="intro-btn-secondary" data-bs-toggle="modal"
+                            data-bs-target="#demoVideoModal">Watch Demo</button>
                     </div>
                 </div>
 
@@ -561,7 +596,8 @@
                     <div class="intro-actions intro-actions-mobile">
                         <button type="button" class="intro-btn-primary" data-bs-toggle="modal"
                             data-bs-target="#loginModal">Get Started Free</button>
-                        <a href="#" class="intro-btn-secondary">Watch Demo</a>
+                        <button type="button" class="intro-btn-secondary" data-bs-toggle="modal"
+                            data-bs-target="#demoVideoModal">Watch Demo</button>
                     </div>
                 </div>
             </div>
@@ -761,6 +797,23 @@
             </div>
         </div>
     </div>
+
+    <!-- Video Demo Modal -->
+    <div class="modal fade" id="demoVideoModal" tabindex="-1" aria-labelledby="demoVideoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="modal-body p-0">
+                    <div class="video-container">
+                        <iframe id="demoVideoIframe" src="https://www.youtube.com/embed/yIHelLQuqto"
+                            title="Daily Ledger Demo"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -798,6 +851,16 @@
             myModal.show();
         }
         {% endif %}
+
+        // Stop video when modal is closed
+        const demoVideoModal = document.getElementById('demoVideoModal');
+        const demoVideoIframe = document.getElementById('demoVideoIframe');
+        const videoSrc = demoVideoIframe.src;
+
+        demoVideoModal.addEventListener('hidden.bs.modal', function () {
+            demoVideoIframe.src = '';
+            demoVideoIframe.src = videoSrc;
+        });
     });
 </script>
 {% endblock %}
